@@ -1,8 +1,0 @@
-app:
-  name: Blog
-  port: :3000
-
-database:
-  dsn: postgres://postgres:wang147258369.@localhost:5432/Blog?sslmode=disable
-  MaxIdleCons: 10
-  MaxOpenCons: 10
