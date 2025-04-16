@@ -3,6 +3,7 @@ package router
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/xyy0411/blog/controllers"
+	"github.com/xyy0411/blog/controllers/matching"
 	"github.com/xyy0411/blog/middlewares"
 )
 
@@ -15,13 +16,23 @@ func SetupRouter() *gin.Engine {
 		auth.POST("/register", controllers.Register)
 		auth.GET("/setName", controllers.SetName, middlewares.AuthMiddlewares())
 	}
-	api.GET("/article/:article_id", controllers.ShowArticle)
+	article := api.Group("/article")
+	article.GET("/:article_id", controllers.ShowArticle)
+	article.GET("/all", controllers.GetAllArticles)
 	// 在get请求后添加一个中间件,用来检查token
-	api.Use(middlewares.AuthMiddlewares())
+	article.Use(middlewares.AuthMiddlewares())
 	{
-		api.POST("/article/comment/:article_id", controllers.PublishArticleComment)
-		api.DELETE("/article/:article_id/comment/:comment_id", controllers.DeleteArticleComment)
-		api.POST("/article", controllers.CreateArticle)
+		article.POST("/comment/:article_id", controllers.PublishArticleComment)
+		article.DELETE("/:article_id/comment/:comment_id", controllers.DeleteArticleComment)
+		article.POST("", controllers.CreateArticle)
+		article.PUT("/:article_id", controllers.UpdateArticle)
+	}
+	matched := api.Group("/matching")
+	{
+		matched.GET("status/:user_id", matching.LookMatchingStatus)
+		matched.GET("/:user_id", matching.HandleMatching)
+		matched.DELETE("/:user_id", matching.QuitMatching)
+		matched.GET("person", matching.GetMatchingPerson)
 	}
 	return r
 }

@@ -15,6 +15,9 @@ func flagDB() {
 		&models.Banner{},
 		&models.Log{},
 		&models.UserLogin{},
+		&models.Matching{},
+		&models.BlockUser{},
+		&models.OnlineSoftware{},
 	)
 	if err != nil {
 		global.Logger.Errorf("数据库迁移失败: %v", err)

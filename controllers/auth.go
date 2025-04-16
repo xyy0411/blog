@@ -84,7 +84,7 @@ func Login(ctx *gin.Context) {
 		return
 	}
 
-	resp.OK(ctx, token, map[string]any{"uid": dbUser.UID}, "token")
+	resp.OK(ctx, token, nil, "token")
 }
 
 func Register(ctx *gin.Context) {
