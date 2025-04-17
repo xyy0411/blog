@@ -96,7 +96,6 @@ func (mm *Manager) MatchUsers(user models.Matching) {
 
 	var targetUser models.Matching
 	mm.matchedList.Range(func(key int64, value *models.Matching) bool {
-		global.Logger.Info(user.IsMatching(*value))
 		if user.UserID != value.UserID && user.IsMatching(*value) {
 			targetUser = *value
 			return false
