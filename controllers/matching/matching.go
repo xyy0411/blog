@@ -159,7 +159,6 @@ func QuitMatching(ctx *gin.Context) {
 		resp.Error(ctx, http.StatusNotFound, "未找到用户的 WebSocket 连接")
 		return
 	}
-	resp.OK(ctx, "你已退出匹配队列", nil)
 	client.send <- []byte("你已退出匹配队列")
 }
 
