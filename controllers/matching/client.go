@@ -36,13 +36,13 @@ func (c *Client) checkLimitTimer(id int64) {
 	for {
 		select {
 		case <-c.close:
+			global.Logger.Infof("用户:%d 主动退出匹配队列", id)
 			return
 		case t := <-c.limitTimer:
 			// 创建或重置定时器
 			timer = time.NewTimer(time.Duration(t) * time.Second)
 		case <-timer.C:
 			matchedList.RemoveUserFromQueue(id)
-			c.hub.unregister <- id
 			c.send <- []byte("匹配超时,已退出匹配队列")
 			return
 		}

@@ -1,7 +1,6 @@
 package matching
 
 import (
-	"github.com/xyy0411/blog/global"
 	"github.com/xyy0411/blog/models"
 )
 
@@ -46,7 +45,6 @@ func (h *Hub) Run() {
 			h.clients[client.id] = client.client
 			client.client.send <- []byte("匹配中")
 		case info := <-h.match:
-			global.Logger.Info("开始")
 			matchedList.MatchUsers(info)
 		case id := <-h.unregister:
 			if _, ok := h.clients[id]; ok {

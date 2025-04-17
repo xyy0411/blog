@@ -131,7 +131,7 @@ func LookMatchingStatus(ctx *gin.Context) {
 	}
 	_, ok := matchedList.matchedList.Load(userID)
 	if !ok {
-		resp.OK(ctx, "你还没有加入匹配队列", nil)
+		resp.Error(ctx, http.StatusNotFound, "你还没有加入匹配队列")
 		return
 	}
 	resp.OK(ctx, "你正在匹配队列中", nil)
@@ -156,9 +156,10 @@ func QuitMatching(ctx *gin.Context) {
 	client, ok := MatchHub.clients[userID]
 	lock.Unlock()
 	if !ok {
-		resp.Error(ctx, http.StatusNotFound, "用户未找到")
+		resp.Error(ctx, http.StatusNotFound, "未找到用户的 WebSocket 连接")
 		return
 	}
+	resp.OK(ctx, "你已退出匹配队列", nil)
 	client.send <- []byte("你已退出匹配队列")
 }
 
@@ -172,7 +173,7 @@ func HandleMatching(ctx *gin.Context) {
 
 	conn, err := upgrader.Upgrade(ctx.Writer, ctx.Request, nil)
 	if err != nil {
-		resp.Error(ctx, http.StatusInternalServerError, err.Error())
+		resp.Error(ctx, http.StatusInternalServerError, err)
 		return
 	}
 	global.Logger.Infof("已与用户:%d 建立 WebSocket 连接", userID)
@@ -199,7 +200,6 @@ func HandleMatching(ctx *gin.Context) {
 			}
 			break
 		}
-		global.Logger.Info(user)
 		if userID != user.UserID {
 			client.client.send <- []byte("用户ID不匹配")
 			break
