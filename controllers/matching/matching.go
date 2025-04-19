@@ -194,6 +194,7 @@ func HandleMatching(ctx *gin.Context) {
 		err = conn.ReadJSON(&user)
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				global.Logger.Errorf("用户:%d 连接异常:%v", userID, err)
 				client.client.send <- []byte(err.Error())
 			}
 			break

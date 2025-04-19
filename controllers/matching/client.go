@@ -14,6 +14,12 @@ type Client struct {
 	close      chan bool   // 关闭通道
 }
 
+/*
+	type SendMessage struct {
+		MessageType int8 // 0: 匹配成功 ; 1: 发生意外错误
+		Message     string
+	}
+*/
 func NewClient(hub *Hub, conn *websocket.Conn) *Client {
 	return &Client{
 		hub:        hub,
@@ -28,6 +34,7 @@ func (c *Client) checkLimitTimer(id int64) {
 	timer := time.NewTimer(0)
 	timer.Stop()
 	defer func() {
+		global.Logger.Infof("用户:%d 已退出匹配队列,关闭定时器", id)
 		if timer != nil {
 			timer.Stop()
 		}
@@ -36,7 +43,6 @@ func (c *Client) checkLimitTimer(id int64) {
 	for {
 		select {
 		case <-c.close:
-			global.Logger.Infof("用户:%d 主动退出匹配队列", id)
 			return
 		case t := <-c.limitTimer:
 			// 创建或重置定时器
@@ -52,8 +58,13 @@ func (c *Client) checkLimitTimer(id int64) {
 func (c *Client) writePump(userID int64) {
 	defer func() {
 		c.hub.unregister <- userID
-		c.conn.Close()
-		/*global.Logger.Infof("已与用户:%d 断开连接", userID)*/
+		err := c.conn.Close()
+		if err != nil {
+			global.Logger.Error("关闭连接时发生错误:", err)
+			return
+		}
+		c.close <- true
+		global.Logger.Debug("已与用户:%d 断开连接", userID)
 	}()
 
 	count := 0

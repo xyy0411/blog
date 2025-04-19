@@ -1,6 +1,7 @@
 package matching
 
 import (
+	"github.com/xyy0411/blog/global"
 	"github.com/xyy0411/blog/models"
 )
 
@@ -27,7 +28,7 @@ type userClient struct {
 	client *Client
 }
 
-func NewMatchingHub() {
+func NewMatchingHub() *Hub {
 	MatchHub = &Hub{
 		broadcast:  make(chan []byte),
 		register:   make(chan *userClient),
@@ -35,10 +36,11 @@ func NewMatchingHub() {
 		clients:    make(map[int64]*Client),
 		match:      make(chan models.Matching),
 	}
-	go MatchHub.Run()
+	return MatchHub
 }
 
 func (h *Hub) Run() {
+	global.Logger.Info("匹配系统启动")
 	for {
 		select {
 		case client := <-h.register:

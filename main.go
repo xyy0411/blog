@@ -15,7 +15,8 @@ func main() {
 	//config.InitRedis()
 	flag.Run()
 	// 启动匹配系统
-	matching.NewMatchingHub()
+	hub := matching.NewMatchingHub()
+	go hub.Run()
 
 	engine := router.SetupRouter()
 	err := engine.Run(config.AppConfig.App.Port)
