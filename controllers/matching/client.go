@@ -64,7 +64,7 @@ func (c *Client) writePump(userID int64) {
 			return
 		}
 		c.close <- true
-		global.Logger.Debug("已与用户:%d 断开连接", userID)
+		global.Logger.Debugf("已与用户:%d 断开连接", userID)
 	}()
 
 	count := 0

@@ -18,6 +18,7 @@ func flagDB() {
 		&models.Matching{},
 		&models.BlockUser{},
 		&models.OnlineSoftware{},
+		&models.BlackIP{},
 	)
 	if err != nil {
 		global.Logger.Errorf("数据库迁移失败: %v", err)

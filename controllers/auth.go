@@ -12,6 +12,10 @@ import (
 	"net/http"
 )
 
+func NORoute(ctx *gin.Context) {
+	resp.Error(ctx, http.StatusNotFound, "没有找到该路由")
+}
+
 func SetName(ctx *gin.Context) {
 	var input struct {
 		Name string `json:"name"`
