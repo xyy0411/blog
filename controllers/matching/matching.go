@@ -60,31 +60,16 @@ func (mm *Manager) RemoveUserFromQueue(userID int64) {
 }
 
 func (mm *Manager) notifyAndRemoveUser(id int64, user models.Matching) {
-	// 检查 MatchHub 是否为 nil
-	if MatchHub == nil {
-		global.Logger.Error("MatchHub 未初始化")
-		return
-	}
-	// 检查 MatchHub.clients 是否为 nil
-	if MatchHub.clients == nil {
-		global.Logger.Error("MatchHub.clients 未初始化")
-		return
-	}
 	client, ok := MatchHub.clients[id]
 	if !ok || client == nil {
 		global.Logger.Errorf("用户 %d 的客户端未找到", user.UserID)
-		return
-	}
-	// 检查 client.send 是否为 nil
-	if client.send == nil {
-		global.Logger.Errorf("用户 %d 的客户端 send 通道未初始化", user.UserID)
 		return
 	}
 	msg := utils.FormatMatchingInfo(user)
 	mm.RemoveUserFromQueue(user.UserID)
 	// 匹配结束前要关闭定时器
 	client.close <- true
-	client.send <- []byte(msg)
+	client.send <- newMessage(global.MatchSuccess, []byte(msg))
 }
 
 func (mm *Manager) MatchUsers(user models.Matching) {
@@ -158,7 +143,7 @@ func QuitMatching(ctx *gin.Context) {
 		resp.Error(ctx, http.StatusNotFound, "未找到用户的 WebSocket 连接")
 		return
 	}
-	client.send <- []byte("你已退出匹配队列")
+	client.send <- newMessage(global.MatchExit, []byte("你已退出匹配队列"))
 }
 
 func HandleMatching(ctx *gin.Context) {
@@ -186,7 +171,7 @@ func HandleMatching(ctx *gin.Context) {
 	// 注册客户端
 	MatchHub.register <- client
 	// 启动定时器
-	go client.client.checkLimitTimer(userID)
+	go client.client.handleTimeout(userID)
 
 	for {
 		var user models.Matching
@@ -195,17 +180,17 @@ func HandleMatching(ctx *gin.Context) {
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				global.Logger.Errorf("用户:%d 连接异常:%v", userID, err)
-				client.client.send <- []byte(err.Error())
+				client.client.send <- newMessage(global.MatchError, []byte(err.Error()))
 			}
 			break
 		}
 		if userID != user.UserID {
-			client.client.send <- []byte("用户ID不匹配")
+			client.client.send <- newMessage(global.MatchInteractError, []byte("用户ID不匹配"))
 			break
 		}
 
 		if _, ok := matchedList.matchedList.Load(user.UserID); ok {
-			client.client.send <- []byte("你已在匹配队列中，请勿重复匹配")
+			client.client.send <- newMessage(global.MatchInteractError, []byte("你已在匹配队列中，请勿重复匹配"))
 			break
 		}
 

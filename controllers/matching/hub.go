@@ -45,19 +45,20 @@ func (h *Hub) Run() {
 		select {
 		case client := <-h.register:
 			h.clients[client.id] = client.client
-			client.client.send <- []byte("匹配中")
+			client.client.send <- newMessage(global.MatchMsg, []byte("匹配中"))
 
 		case info := <-h.match:
 			matchedList.MatchUsers(info)
 
 		case id := <-h.unregister:
-			if _, ok := h.clients[id]; ok {
+			if r, ok := h.clients[id]; ok {
 				delete(h.clients, id)
+				close(r.send)
 			}
 
 		case id := <-h.quit:
 			client, _ := h.clients[id]
-			client.send <- []byte("已成功退出匹配")
+			client.send <- newMessage(global.MatchExit, []byte("已成功退出匹配"))
 			delete(h.clients, id)
 			close(client.send)
 		}
