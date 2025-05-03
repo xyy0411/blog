@@ -31,10 +31,10 @@ func SetupRouter() *gin.Engine {
 	}
 	matched := api.Group("/matching")
 	{
-		matched.GET("status/:user_id", matching.LookMatchingStatus)
+		matched.GET("/status/:user_id", matching.LookMatchingStatus)
 		matched.GET("/:user_id", matching.HandleMatching)
 		matched.DELETE("/:user_id", matching.QuitMatching)
-		matched.GET("person", matching.GetMatchingPerson)
+		matched.GET("/person", matching.GetMatchingPerson)
 	}
 	return r
 }
