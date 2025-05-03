@@ -10,10 +10,8 @@ import (
 func SetupRouter() *gin.Engine {
 	r := gin.Default()
 	// 全局屏蔽IP
-	r.Use(middlewares.CheckIP())
+	// r.Use(middlewares.CheckIP())
 	api := r.Group("/api")
-	r.NoRoute(controllers.NORoute)
-	api.GET("/", func(c *gin.Context) {})
 	auth := api.Group("/auth")
 	{
 		auth.POST("/login", controllers.Login)
