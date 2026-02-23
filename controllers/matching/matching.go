@@ -1,6 +1,7 @@
 package matching
 
 import (
+	"encoding/json"
 	"github.com/RomiChan/syncx"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -80,11 +81,12 @@ func (mm *Manager) notifyAndRemoveUser(id int64, user models.Matching) {
 		global.Logger.Errorf("用户 %d 的客户端 send 通道未初始化", user.UserID)
 		return
 	}
-	msg := utils.FormatMatchingInfo(user)
+	event := utils.FormatMatchingInfo(id, user)
 	mm.RemoveUserFromQueue(user.UserID)
 	// 匹配结束前要关闭定时器
 	client.close <- true
-	client.send <- []byte(msg)
+	msg, _ := json.Marshal(event)
+	client.send <- msg
 }
 
 func (mm *Manager) MatchUsers(user models.Matching) {
@@ -158,7 +160,15 @@ func QuitMatching(ctx *gin.Context) {
 		resp.Error(ctx, http.StatusNotFound, "未找到用户的 WebSocket 连接")
 		return
 	}
-	client.send <- []byte("你已退出匹配队列")
+	event := models.MatchEvent{
+		Type:    "cancelled",
+		SelfID:  userID,
+		PeerID:  0,
+		Message: "你已退出匹配队列",
+		Code:    200,
+	}
+	msg, _ := json.Marshal(event)
+	client.send <- msg
 }
 
 func HandleMatching(ctx *gin.Context) {
@@ -195,17 +205,41 @@ func HandleMatching(ctx *gin.Context) {
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				global.Logger.Errorf("用户:%d 连接异常:%v", userID, err)
-				client.client.send <- []byte(err.Error())
+				event := models.MatchEvent{
+					Type:    "error",
+					SelfID:  userID,
+					PeerID:  0,
+					Message: err.Error(),
+					Code:    500,
+				}
+				msg, _ := json.Marshal(event)
+				client.client.send <- msg
 			}
 			break
 		}
 		if userID != user.UserID {
-			client.client.send <- []byte("用户ID不匹配")
+			event := models.MatchEvent{
+				Type:    "error",
+				SelfID:  userID,
+				PeerID:  0,
+				Message: "用户ID不匹配",
+				Code:    400,
+			}
+			msg, _ := json.Marshal(event)
+			client.client.send <- msg
 			break
 		}
 
 		if _, ok := matchedList.matchedList.Load(user.UserID); ok {
-			client.client.send <- []byte("你已在匹配队列中，请勿重复匹配")
+			event := models.MatchEvent{
+				Type:    "error",
+				SelfID:  userID,
+				PeerID:  0,
+				Message: "你已在匹配队列中，请勿重复匹配",
+				Code:    409,
+			}
+			msg, _ := json.Marshal(event)
+			client.client.send <- msg
 			break
 		}
 

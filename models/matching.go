@@ -1,13 +1,21 @@
 package models
 
+type MatchEvent struct {
+	Type    string `json:"type"` // queueing, matched, cancelled, error
+	SelfID  int64  `json:"self_id"`
+	PeerID  int64  `json:"peer_id"`
+	Message string `json:"message"`
+	Code    int    `json:"code,omitempty"`
+}
+
 type Matching struct {
-	ID             uint             `gorm:"primary_key"`
-	UserID         int64            `json:"user_id"`
-	UserName       string           `json:"user_name"`
-	GroupID        int64            `json:"group_id"`
-	LimitTime      int64            `json:"limit_time"`
-	BlockUser      []BlockUser      `gorm:"foreignKey:MatchingID" json:"block_user"`
-	OnlineSoftware []OnlineSoftware `gorm:"foreignKey:MatchingID" json:"online_software"`
+	ID             uint              `gorm:"primary_key"`
+	UserID         int64             `json:"user_id"`
+	UserName       string            `json:"user_name"`
+	GroupID        int64             `json:"group_id"`
+	LimitTime      int64             `json:"limit_time"`
+	BlockUser      []*BlockUser      `gorm:"foreignKey:MatchingID" json:"block_user"`
+	OnlineSoftware []*OnlineSoftware `gorm:"foreignKey:MatchingID" json:"online_software"`
 }
 
 type BlockUser struct {

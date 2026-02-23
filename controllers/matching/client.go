@@ -1,8 +1,10 @@
 package matching
 
 import (
+	"encoding/json"
 	"github.com/gorilla/websocket"
 	"github.com/xyy0411/blog/global"
+	"github.com/xyy0411/blog/models"
 	"time"
 )
 
@@ -49,7 +51,15 @@ func (c *Client) checkLimitTimer(id int64) {
 			timer = time.NewTimer(time.Duration(t) * time.Second)
 		case <-timer.C:
 			matchedList.RemoveUserFromQueue(id)
-			c.send <- []byte("匹配超时,已退出匹配队列")
+			event := models.MatchEvent{
+				Type:    "error",
+				SelfID:  id,
+				PeerID:  0,
+				Message: "匹配超时,已退出匹配队列",
+				Code:    408,
+			}
+			msg, _ := json.Marshal(event)
+			c.send <- msg
 			return
 		}
 	}

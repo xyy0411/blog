@@ -11,7 +11,7 @@ import (
 )
 
 // FormatMatchingInfo 将 models.Matching 结构体中的信息格式化为字符串
-func FormatMatchingInfo(value1 models.Matching) string {
+func FormatMatchingInfo(uid int64, value1 models.Matching) models.MatchEvent {
 
 	var result strings.Builder
 	result.WriteString("匹配成功啦!对手信息如下:\n名称:")
@@ -37,7 +37,15 @@ func FormatMatchingInfo(value1 models.Matching) string {
 		result.WriteString(t)
 		result.WriteString("\n")
 	}
-	return result.String()
+
+	event := models.MatchEvent{
+		Type:    "matched",
+		SelfID:  uid,
+		PeerID:  value1.UserID,
+		Message: result.String(),
+		Code:    200,
+	}
+	return event
 }
 
 // StructToMap 将结构体转map 忽视字段请使用tag structToMap:"ignore"
