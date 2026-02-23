@@ -9,6 +9,8 @@ import (
 
 func SetupRouter() *gin.Engine {
 	r := gin.Default()
+	// 全局屏蔽IP
+	// r.Use(middlewares.CheckIP())
 	api := r.Group("/api")
 	auth := api.Group("/auth")
 	{
@@ -29,10 +31,10 @@ func SetupRouter() *gin.Engine {
 	}
 	matched := api.Group("/matching")
 	{
-		matched.GET("status/:user_id", matching.LookMatchingStatus)
+		matched.GET("/status/:user_id", matching.LookMatchingStatus)
 		matched.GET("/:user_id", matching.HandleMatching)
 		matched.DELETE("/:user_id", matching.QuitMatching)
-		matched.GET("person", matching.GetMatchingPerson)
+		matched.GET("/person", matching.GetMatchingPerson)
 	}
 	return r
 }
