@@ -5,6 +5,7 @@ type MatchEvent struct {
 	SelfID  int64  `json:"self_id"`
 	PeerID  int64  `json:"peer_id"`
 	Message string `json:"message"`
+	MatchID string `json:"match_id"`
 	Code    int    `json:"code,omitempty"`
 }
 

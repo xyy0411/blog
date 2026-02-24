@@ -11,7 +11,7 @@ import (
 )
 
 // FormatMatchingInfo 将 models.Matching 结构体中的信息格式化为字符串
-func FormatMatchingInfo(uid int64, value1 models.Matching) models.MatchEvent {
+func FormatMatchingInfo(uid int64, value1 models.Matching, matchID string) models.MatchEvent {
 
 	var result strings.Builder
 	result.WriteString("匹配成功啦!对手信息如下:\n名称:")
@@ -20,6 +20,8 @@ func FormatMatchingInfo(uid int64, value1 models.Matching) models.MatchEvent {
 	result.WriteString(strconv.FormatInt(value1.GroupID, 10))
 	result.WriteString("\nQQ号:")
 	result.WriteString(strconv.FormatInt(value1.UserID, 10))
+	result.WriteString("\n匹配ID:")
+	result.WriteString(matchID)
 	result.WriteString("\n支持的软件:\n")
 	for _, s := range value1.OnlineSoftware {
 		var t string
@@ -43,6 +45,7 @@ func FormatMatchingInfo(uid int64, value1 models.Matching) models.MatchEvent {
 		SelfID:  uid,
 		PeerID:  value1.UserID,
 		Message: result.String(),
+		MatchID: matchID,
 		Code:    200,
 	}
 	return event

@@ -33,6 +33,8 @@ var (
 type Manager struct {
 	// 存储匹配的用户
 	matchedList syncx.Map[int64, *models.Matching]
+	// 匹配ID计数器
+	matchIDCounter int64
 }
 
 func NewMatchingManager() *Manager {
@@ -60,7 +62,7 @@ func (mm *Manager) RemoveUserFromQueue(userID int64) {
 	mm.matchedList.Delete(userID)
 }
 
-func (mm *Manager) notifyAndRemoveUser(id int64, user models.Matching) {
+func (mm *Manager) notifyAndRemoveUser(id int64, user models.Matching, matchID string) {
 	// 检查 MatchHub 是否为 nil
 	if MatchHub == nil {
 		global.Logger.Error("MatchHub 未初始化")
@@ -81,7 +83,7 @@ func (mm *Manager) notifyAndRemoveUser(id int64, user models.Matching) {
 		global.Logger.Errorf("用户 %d 的客户端 send 通道未初始化", user.UserID)
 		return
 	}
-	event := utils.FormatMatchingInfo(id, user)
+	event := utils.FormatMatchingInfo(id, user, matchID)
 	mm.RemoveUserFromQueue(user.UserID)
 	// 匹配结束前要关闭定时器
 	client.close <- true
@@ -110,11 +112,15 @@ func (mm *Manager) MatchUsers(user models.Matching) {
 		return
 	}
 
-	// 发送消息
-	mm.notifyAndRemoveUser(targetUser.UserID, user)
-	mm.notifyAndRemoveUser(user.UserID, targetUser)
+	// 生成匹配ID
+	mm.matchIDCounter++
+	matchID := strconv.FormatInt(mm.matchIDCounter, 10)
 
-	global.Logger.Infof("匹配成功 用户:%d <----> 用户:%d", user.UserID, targetUser.UserID)
+	// 发送消息
+	mm.notifyAndRemoveUser(targetUser.UserID, user, matchID)
+	mm.notifyAndRemoveUser(user.UserID, targetUser, matchID)
+
+	global.Logger.Infof("匹配成功 用户:%d <----> 用户:%d, 匹配ID:%s", user.UserID, targetUser.UserID, matchID)
 
 	return
 }
