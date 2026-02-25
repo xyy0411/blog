@@ -3,6 +3,6 @@ app:
   port: :3000
 
 database:
-  dsn: postgres://postgres:wang147258369.@localhost:5432/Blog?sslmode=disable
+  dsn: postgres://postgres:wang147258369.@localhost:5432/blog?sslmode=disable
   MaxIdleCons: 10
   MaxOpenCons: 10
