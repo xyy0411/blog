@@ -44,8 +44,8 @@ type MatchingSoftWare struct {
 
 type MatchingSoftWares []MatchingSoftWare
 
-// IsMatching 检查是否匹配
-func (user1 Matching) IsMatching(user2 Matching) (isM bool) {
+// IsMatch 检查是否匹配
+func (user1 Matching) IsMatch(user2 Matching) (isM bool) {
 	blocked := make(map[int64]struct{})
 	for _, blockUser := range user1.BlockUser {
 		blocked[blockUser.UserID] = struct{}{}

@@ -33,13 +33,13 @@ var (
 type Manager struct {
 	// 存储匹配的用户
 	matchedList syncx.Map[int64, *models.Matching]
-	// 匹配ID计数器
-	matchIDCounter int64
+	idGen       *Snowflake
 }
 
 func NewMatchingManager() *Manager {
 	return &Manager{
 		matchedList: syncx.Map[int64, *models.Matching]{},
+		idGen:       NewSnowflake(0),
 	}
 }
 
@@ -60,6 +60,25 @@ func (mm *Manager) AddUserToQueue(user *models.Matching) {
 
 func (mm *Manager) RemoveUserFromQueue(userID int64) {
 	mm.matchedList.Delete(userID)
+}
+
+func (mm *Manager) GenerateMatchID() string {
+	return strconv.FormatInt(mm.idGen.NextID(), 10)
+}
+
+func (mm *Manager) saveMatchingRecord(user, targetUser models.Matching, matchID string) {
+	record := models.MatchingRecord{
+		UserID:   user.UserID,
+		UserName: user.UserName,
+		PeerID:   targetUser.UserID,
+		PeerName: targetUser.UserName,
+		MatchID:  matchID,
+	}
+
+	// 保存到数据库
+	if err := global.DB.Create(&record).Error; err != nil {
+		global.Logger.Errorf("保存匹配记录失败: %v", err)
+	}
 }
 
 func (mm *Manager) notifyAndRemoveUser(id int64, user models.Matching, matchID string) {
@@ -100,7 +119,7 @@ func (mm *Manager) MatchUsers(user models.Matching) {
 
 	var targetUser models.Matching
 	mm.matchedList.Range(func(key int64, value *models.Matching) bool {
-		if user.UserID != value.UserID && user.IsMatching(*value) {
+		if user.UserID != value.UserID && user.IsMatch(*value) {
 			targetUser = *value
 			return false
 		}
@@ -112,9 +131,7 @@ func (mm *Manager) MatchUsers(user models.Matching) {
 		return
 	}
 
-	// 生成匹配ID
-	mm.matchIDCounter++
-	matchID := strconv.FormatInt(mm.matchIDCounter, 10)
+	matchID := mm.GenerateMatchID()
 
 	// 发送消息
 	mm.notifyAndRemoveUser(targetUser.UserID, user, matchID)
@@ -122,7 +139,7 @@ func (mm *Manager) MatchUsers(user models.Matching) {
 
 	global.Logger.Infof("匹配成功 用户:%d <----> 用户:%d, 匹配ID:%s", user.UserID, targetUser.UserID, matchID)
 
-	return
+	mm.saveMatchingRecord(user, targetUser, matchID)
 }
 
 func GetMatchingPerson(ctx *gin.Context) {
