@@ -432,10 +432,10 @@ func QuitMatching(ctx *gin.Context) {
 		Type:    "cancelled",
 		SelfID:  userID,
 		PeerID:  0,
-		Message: "you have quit matching queue",
+		Message: "你已退出匹配队列",
 		Code:    200,
 	})
-	resp.OK(ctx, "quit success", nil)
+	resp.OK(ctx, "你已退出匹配队列", nil)
 }
 
 func HandleMatching(ctx *gin.Context) {
