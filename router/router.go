@@ -9,7 +9,6 @@ import (
 
 func SetupRouter() *gin.Engine {
 	r := gin.Default()
-	// 全局屏蔽IP
 	// r.Use(middlewares.CheckIP())
 	api := r.Group("/api")
 	auth := api.Group("/auth")
@@ -18,10 +17,10 @@ func SetupRouter() *gin.Engine {
 		auth.POST("/register", controllers.Register)
 		auth.GET("/setName", controllers.SetName, middlewares.AuthMiddlewares())
 	}
+
 	article := api.Group("/article")
 	article.GET("/:article_id", controllers.ShowArticle)
 	article.GET("/all", controllers.GetAllArticles)
-	// 在get请求后添加一个中间件,用来检查token
 	article.Use(middlewares.AuthMiddlewares())
 	{
 		article.POST("/comment/:article_id", controllers.PublishArticleComment)
@@ -29,8 +28,20 @@ func SetupRouter() *gin.Engine {
 		article.POST("", controllers.CreateArticle)
 		article.PUT("/:article_id", controllers.UpdateArticle)
 	}
+
 	matched := api.Group("/matching")
 	{
+		matched.POST("/profile", matching.CreateMatchingProfile)
+		matched.GET("/profile/:user_id", matching.GetMatchingProfile)
+		matched.GET("/profile/:user_id/software", matching.GetMatchingSoftwareList)
+		matched.GET("/profile/:user_id/block-user", matching.GetMatchingBlockUserList)
+		matched.GET("/profile/:user_id/expire", matching.GetMatchingExpire)
+		matched.PATCH("/profile/:user_id/expire", matching.UpdateMatchingExpire)
+		matched.POST("/profile/:user_id/software", matching.AddMatchingSoftware)
+		matched.DELETE("/profile/:user_id/software/:software_name", matching.RemoveMatchingSoftware)
+		matched.POST("/profile/:user_id/block-user", matching.AddMatchingBlockUser)
+		matched.DELETE("/profile/:user_id/block-user/:target_user_id", matching.RemoveMatchingBlockUser)
+
 		matched.GET("/status/:user_id", matching.LookMatchingStatus)
 		matched.GET("/:user_id", matching.HandleMatching)
 		matched.DELETE("/:user_id", matching.QuitMatching)

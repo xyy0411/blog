@@ -1,7 +1,6 @@
 package matching
 
 import (
-	"encoding/json"
 	"github.com/xyy0411/blog/global"
 	"github.com/xyy0411/blog/models"
 )
@@ -49,12 +48,10 @@ func (h *Hub) Run() {
 			event := models.MatchEvent{
 				Type:    "queueing",
 				SelfID:  client.id,
-				PeerID:  0,
 				Message: "匹配中",
 				Code:    200,
 			}
-			msg, _ := json.Marshal(event)
-			client.client.send <- msg
+			sendEvent(client.client, event)
 		case info := <-h.match:
 			matchedList.MatchUsers(info)
 		case id := <-h.unregister:
@@ -70,8 +67,7 @@ func (h *Hub) Run() {
 				Message: "已成功退出匹配",
 				Code:    200,
 			}
-			msg, _ := json.Marshal(event)
-			client.send <- msg
+			sendEvent(client, event)
 			delete(h.clients, id)
 			close(client.send)
 		}

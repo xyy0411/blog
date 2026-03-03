@@ -16,14 +16,12 @@ func FormatMatchingInfo(uid int64, value1 models.Matching, matchID string) model
 	var result strings.Builder
 	result.WriteString("匹配成功啦!对手信息如下:\n名称:")
 	result.WriteString(value1.UserName)
-	result.WriteString("\n群号:")
-	result.WriteString(strconv.FormatInt(value1.GroupID, 10))
 	result.WriteString("\nQQ号:")
 	result.WriteString(strconv.FormatInt(value1.UserID, 10))
 	result.WriteString("\n匹配ID:")
 	result.WriteString(matchID)
 	result.WriteString("\n支持的软件:\n")
-	for _, s := range value1.OnlineSoftware {
+	for _, s := range value1.OnlineSoftwares {
 		var t string
 		switch s.Type {
 		case 0:

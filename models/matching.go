@@ -10,31 +10,34 @@ type MatchEvent struct {
 }
 
 type Matching struct {
-	ID             uint              `gorm:"primary_key"`
-	UserID         int64             `json:"user_id"`
-	UserName       string            `json:"user_name"`
-	GroupID        int64             `json:"group_id"`
-	LimitTime      int64             `json:"limit_time"`
-	BlockUser      []*BlockUser      `gorm:"foreignKey:MatchingID" json:"block_user"`
-	OnlineSoftware []*OnlineSoftware `gorm:"foreignKey:MatchingID" json:"online_software"`
+	ID       int64  `gorm:"primaryKey" json:"id"`
+	UserID   int64  `json:"user_id"`
+	UserName string `json:"user_name"`
+	ExpireAt int64  `grom:"default:2000" json:"expire_at"`
+
+	BlockUsers      []BlockUser      `json:"block_users"`
+	OnlineSoftwares []OnlineSoftware `json:"online_softwares"`
 }
 
 type BlockUser struct {
-	ID         int64 `gorm:"primary_key" json:"id"`
-	MatchingID int64 `json:"matching_id"`
-	UserID     int64 `gorm:"unique" json:"user_id"`
+	ID         int64 `gorm:"primaryKey" json:"id"`
+	MatchingID int64 `gorm:"uniqueIndex:idx_match_block;constraint:OnDelete:CASCADE" json:"matching_id"`
+	UserID     int64 `gorm:"uniqueIndex:idx_match_block" json:"user_id"`
+}
+
+func (BlockUser) TableName() string {
+	return "block_user"
 }
 
 type OnlineSoftware struct {
-	ID         int64  `gorm:"primary_key" json:"id"`
-	MatchingID int64  `json:"matching_id"`
-	Name       string `gorm:"unique" json:"name"`
-	Type       int8   `gorm:"unique" json:"type"` // 0 主副皆可 1 仅主 2 仅副
+	ID         int64  `gorm:"primaryKey" json:"id"`
+	MatchingID int64  `gorm:"uniqueIndex:idx_match_soft" json:"matching_id"`
+	Name       string `gorm:"uniqueIndex:idx_match_soft" json:"name"`
+	Type       int8   `json:"type"`
 }
 
-type SendMatchMessage struct {
-	UserID   int64             `json:"user_id"`
-	Software MatchingSoftWares `json:"software"`
+func (OnlineSoftware) TableName() string {
+	return "online_software"
 }
 
 type MatchingSoftWare struct {
@@ -47,10 +50,10 @@ type MatchingSoftWares []MatchingSoftWare
 // IsMatch 检查是否匹配
 func (user1 Matching) IsMatch(user2 Matching) (isM bool) {
 	blocked := make(map[int64]struct{})
-	for _, blockUser := range user1.BlockUser {
+	for _, blockUser := range user1.BlockUsers {
 		blocked[blockUser.UserID] = struct{}{}
 	}
-	for _, blockUser := range user2.BlockUser {
+	for _, blockUser := range user2.BlockUsers {
 		if _, exists := blocked[blockUser.UserID]; exists {
 			return
 		}
@@ -59,8 +62,8 @@ func (user1 Matching) IsMatch(user2 Matching) (isM bool) {
 	// 判断可用的软件
 	var matchInfo MatchingSoftWares
 	matchInfoMap := make(map[string]MatchingSoftWare) // 用于去重
-	for _, i2 := range user1.OnlineSoftware {
-		for _, s := range user2.OnlineSoftware {
+	for _, i2 := range user1.OnlineSoftwares {
+		for _, s := range user2.OnlineSoftwares {
 			/*			// 最优先匹配软件相同 类型为互为12
 						if s.Name == i2.Name && math.Abs(float64(s.Type-i2.Type)) == 1 && s.Type != 0 && i2.Type != 0 {
 							global.Logger.Info("匹配成功")
@@ -87,7 +90,7 @@ func (user1 Matching) IsMatch(user2 Matching) (isM bool) {
 		matchInfoMapForExistCheck[ware.Name] = struct{}{}
 	}
 	// 检查 user1 的软件是否在 matchInfo 中
-	for _, s := range user1.OnlineSoftware {
+	for _, s := range user1.OnlineSoftwares {
 		if _, exist := matchInfoMapForExistCheck[s.Name]; exist {
 			exists = true
 			break

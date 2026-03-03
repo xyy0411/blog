@@ -2,144 +2,390 @@ package matching
 
 import (
 	"encoding/json"
-	"github.com/RomiChan/syncx"
+	"errors"
+	"net/http"
+	"strconv"
+	"strings"
+	"sync"
+
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/xyy0411/blog/global"
 	"github.com/xyy0411/blog/models"
+	matchingrepo "github.com/xyy0411/blog/repositories/matching"
 	"github.com/xyy0411/blog/resp"
-	"github.com/xyy0411/blog/utils"
-	"net/http"
-	"strconv"
-	"sync"
+	"gorm.io/gorm"
 )
 
 var (
 	upgrader = websocket.Upgrader{
-		/*		ReadBufferSize:  1024,
-				WriteBufferSize: 1024,*/
 		CheckOrigin: func(r *http.Request) bool {
 			return true
 		},
 	}
-	// 存储匹配的用户
 	matchedList = NewMatchingManager()
-
-	lock sync.RWMutex
-	/*	// 维护用户 WebSocket 连接
-		connections = syncx.Map[int64, *Client]{}*/
+	lock        sync.RWMutex
 )
 
-type Manager struct {
-	// 存储匹配的用户
-	matchedList syncx.Map[int64, *models.Matching]
-	idGen       *Snowflake
+func getRepo() *matchingrepo.Repo {
+	return matchingrepo.NewRepo(global.DB)
 }
 
-func NewMatchingManager() *Manager {
-	return &Manager{
-		matchedList: syncx.Map[int64, *models.Matching]{},
-		idGen:       NewSnowflake(0),
+func parseUserIDParam(ctx *gin.Context) (int64, bool) {
+	id := ctx.Param("user_id")
+	userID, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		resp.Error(ctx, http.StatusBadRequest, "invalid user_id")
+		return 0, false
 	}
+	return userID, true
 }
 
-func (mm *Manager) Len() int {
-	var listLen int
-
-	mm.matchedList.Range(func(key int64, value *models.Matching) bool {
-		listLen++
-		return true
-	})
-
-	return listLen
-}
-
-func (mm *Manager) AddUserToQueue(user *models.Matching) {
-	mm.matchedList.Store(user.UserID, user)
-}
-
-func (mm *Manager) RemoveUserFromQueue(userID int64) {
-	mm.matchedList.Delete(userID)
-}
-
-func (mm *Manager) GenerateMatchID() string {
-	return strconv.FormatInt(mm.idGen.NextID(), 10)
-}
-
-func (mm *Manager) saveMatchingRecord(user, targetUser models.Matching, matchID string) {
-	record := models.MatchingRecord{
-		UserID:   user.UserID,
-		UserName: user.UserName,
-		PeerID:   targetUser.UserID,
-		PeerName: targetUser.UserName,
-		MatchID:  matchID,
-	}
-
-	// 保存到数据库
-	if err := global.DB.Create(&record).Error; err != nil {
-		global.Logger.Errorf("保存匹配记录失败: %v", err)
-	}
-}
-
-func (mm *Manager) notifyAndRemoveUser(id int64, user models.Matching, matchID string) {
-	// 检查 MatchHub 是否为 nil
-	if MatchHub == nil {
-		global.Logger.Error("MatchHub 未初始化")
-		return
-	}
-	// 检查 MatchHub.clients 是否为 nil
-	if MatchHub.clients == nil {
-		global.Logger.Error("MatchHub.clients 未初始化")
-		return
-	}
-	client, ok := MatchHub.clients[id]
-	if !ok || client == nil {
-		global.Logger.Errorf("用户 %d 的客户端未找到", user.UserID)
-		return
-	}
-	// 检查 client.send 是否为 nil
-	if client.send == nil {
-		global.Logger.Errorf("用户 %d 的客户端 send 通道未初始化", user.UserID)
-		return
-	}
-	event := utils.FormatMatchingInfo(id, user, matchID)
-	mm.RemoveUserFromQueue(user.UserID)
-	// 匹配结束前要关闭定时器
-	client.close <- true
+func sendEvent(client *Client, event models.MatchEvent) {
 	msg, _ := json.Marshal(event)
 	client.send <- msg
 }
 
-func (mm *Manager) MatchUsers(user models.Matching) {
-
-	if mm.Len() == 0 {
-		mm.AddUserToQueue(&user)
+func syncQueueUser(userID int64) {
+	_, inQueue := matchedList.matchedList.Load(userID)
+	if !inQueue {
 		return
 	}
 
-	var targetUser models.Matching
-	mm.matchedList.Range(func(key int64, value *models.Matching) bool {
-		if user.UserID != value.UserID && user.IsMatch(*value) {
-			targetUser = *value
-			return false
+	user, err := getRepo().GetByUserID(userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			matchedList.RemoveUserFromQueue(userID)
+			return
 		}
-		return true
-	})
-
-	if targetUser.UserID == 0 {
-		mm.AddUserToQueue(&user)
+		global.Logger.Errorf("同步匹配队列用户失败，user_id=%d，err=%v", userID, err)
 		return
 	}
 
-	matchID := mm.GenerateMatchID()
+	matchedList.AddUserToQueue(&user)
+}
 
-	// 发送消息
-	mm.notifyAndRemoveUser(targetUser.UserID, user, matchID)
-	mm.notifyAndRemoveUser(user.UserID, targetUser, matchID)
+func CreateMatchingProfile(ctx *gin.Context) {
+	var input struct {
+		UserID          int64                   `json:"user_id"`
+		UserName        string                  `json:"user_name"`
+		ExpireAt        int64                   `json:"expire_at"`
+		OnlineSoftwares []models.OnlineSoftware `json:"online_softwares"`
+		BlockUserIDs    []int64                 `json:"block_user_ids"`
+	}
 
-	global.Logger.Infof("匹配成功 用户:%d <----> 用户:%d, 匹配ID:%s", user.UserID, targetUser.UserID, matchID)
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		resp.Error(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
 
-	mm.saveMatchingRecord(user, targetUser, matchID)
+	if input.UserID == 0 || strings.TrimSpace(input.UserName) == "" {
+		resp.Error(ctx, http.StatusBadRequest, "user_id and user_name are required")
+		return
+	}
+
+	repo := getRepo()
+	if _, err := repo.GetByUserID(input.UserID); err == nil {
+		resp.Error(ctx, http.StatusConflict, "matching profile already exists")
+		return
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		resp.Error(ctx, http.StatusInternalServerError, "query matching profile failed")
+		return
+	}
+
+	match := models.Matching{
+		UserID:          input.UserID,
+		UserName:        input.UserName,
+		OnlineSoftwares: input.OnlineSoftwares,
+	}
+	if input.ExpireAt > 0 {
+		match.ExpireAt = input.ExpireAt
+	}
+
+	if len(input.BlockUserIDs) > 0 {
+		match.BlockUsers = make([]models.BlockUser, 0, len(input.BlockUserIDs))
+		for _, blocked := range input.BlockUserIDs {
+			if blocked == 0 || blocked == input.UserID {
+				continue
+			}
+			match.BlockUsers = append(match.BlockUsers, models.BlockUser{UserID: blocked})
+		}
+	}
+
+	if err := repo.CreateMatchingWithChildren(&match); err != nil {
+		resp.Error(ctx, http.StatusInternalServerError, "create matching profile failed")
+		return
+	}
+
+	resp.OK(ctx, "created", map[string]any{"matching": match})
+}
+
+func GetMatchingProfile(ctx *gin.Context) {
+	userID, ok := parseUserIDParam(ctx)
+	if !ok {
+		return
+	}
+
+	match, err := getRepo().GetByUserID(userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			resp.Error(ctx, http.StatusNotFound, "matching profile not found")
+			return
+		}
+		resp.Error(ctx, http.StatusInternalServerError, "query matching profile failed")
+		return
+	}
+
+	resp.OK(ctx, "", map[string]any{"matching": match})
+}
+
+func GetMatchingSoftwareList(ctx *gin.Context) {
+	userID, ok := parseUserIDParam(ctx)
+	if !ok {
+		return
+	}
+
+	match, err := getRepo().GetByUserID(userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			resp.Error(ctx, http.StatusNotFound, "matching profile not found")
+			return
+		}
+		resp.Error(ctx, http.StatusInternalServerError, "query matching profile failed")
+		return
+	}
+
+	resp.OK(ctx, "", map[string]any{"online_softwares": match.OnlineSoftwares})
+}
+
+func GetMatchingBlockUserList(ctx *gin.Context) {
+	userID, ok := parseUserIDParam(ctx)
+	if !ok {
+		return
+	}
+
+	match, err := getRepo().GetByUserID(userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			resp.Error(ctx, http.StatusNotFound, "matching profile not found")
+			return
+		}
+		resp.Error(ctx, http.StatusInternalServerError, "query matching profile failed")
+		return
+	}
+
+	blockUserIDs := make([]int64, 0, len(match.BlockUsers))
+	for _, blockUser := range match.BlockUsers {
+		blockUserIDs = append(blockUserIDs, blockUser.UserID)
+	}
+
+	resp.OK(ctx, "", map[string]any{"block_user_ids": blockUserIDs})
+}
+
+func UpdateMatchingExpire(ctx *gin.Context) {
+	userID, ok := parseUserIDParam(ctx)
+	if !ok {
+		return
+	}
+
+	var input struct {
+		ExpireAt int64 `json:"expire_at"`
+	}
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		resp.Error(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+	if input.ExpireAt <= 0 {
+		resp.Error(ctx, http.StatusBadRequest, "expire_at must be greater than 0")
+		return
+	}
+
+	if err := getRepo().UpdateExpire(userID, input.ExpireAt); err != nil {
+		resp.Error(ctx, http.StatusInternalServerError, "update expire_at failed")
+		return
+	}
+
+	syncQueueUser(userID)
+	resp.OK(ctx, "updated", nil)
+}
+
+func GetMatchingExpire(ctx *gin.Context) {
+	userID, ok := parseUserIDParam(ctx)
+	if !ok {
+		return
+	}
+
+	match, err := getRepo().GetByUserID(userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			resp.Error(ctx, http.StatusNotFound, "matching profile not found")
+			return
+		}
+		resp.Error(ctx, http.StatusInternalServerError, "query matching profile failed")
+		return
+	}
+
+	resp.OK(ctx, "", map[string]any{"expire_at": match.ExpireAt})
+}
+
+func AddMatchingSoftware(ctx *gin.Context) {
+	userID, ok := parseUserIDParam(ctx)
+	if !ok {
+		return
+	}
+
+	var input struct {
+		Name string `json:"name"`
+		Type int8   `json:"type"`
+	}
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		resp.Error(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	input.Name = strings.TrimSpace(input.Name)
+	if input.Name == "" {
+		resp.Error(ctx, http.StatusBadRequest, "software name is required")
+		return
+	}
+	if input.Type < 0 || input.Type > 2 {
+		resp.Error(ctx, http.StatusBadRequest, "software type must be 0/1/2")
+		return
+	}
+
+	repo := getRepo()
+	match, err := repo.GetByUserID(userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			resp.Error(ctx, http.StatusNotFound, "matching profile not found")
+			return
+		}
+		resp.Error(ctx, http.StatusInternalServerError, "query matching profile failed")
+		return
+	}
+
+	for _, s := range match.OnlineSoftwares {
+		if s.Name == input.Name {
+			if err := repo.UpdateOnlineSoftwareType(match.ID, input.Name, input.Type); err != nil {
+				resp.Error(ctx, http.StatusInternalServerError, "update software failed")
+				return
+			}
+			syncQueueUser(userID)
+			resp.OK(ctx, "software updated", nil)
+			return
+		}
+	}
+
+	if err := repo.AddOnlineSoftware(match.ID, models.OnlineSoftware{Name: input.Name, Type: input.Type}); err != nil {
+		resp.Error(ctx, http.StatusInternalServerError, "add software failed")
+		return
+	}
+
+	syncQueueUser(userID)
+	resp.OK(ctx, "software added", nil)
+}
+
+func RemoveMatchingSoftware(ctx *gin.Context) {
+	userID, ok := parseUserIDParam(ctx)
+	if !ok {
+		return
+	}
+
+	softwareName := strings.TrimSpace(ctx.Param("software_name"))
+	if softwareName == "" {
+		resp.Error(ctx, http.StatusBadRequest, "software_name is required")
+		return
+	}
+
+	repo := getRepo()
+	match, err := repo.GetByUserID(userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			resp.Error(ctx, http.StatusNotFound, "matching profile not found")
+			return
+		}
+		resp.Error(ctx, http.StatusInternalServerError, "query matching profile failed")
+		return
+	}
+
+	if err := repo.RemoveOnlineSoftware(match.ID, softwareName); err != nil {
+		resp.Error(ctx, http.StatusInternalServerError, "remove software failed")
+		return
+	}
+
+	syncQueueUser(userID)
+	resp.OK(ctx, "software removed", nil)
+}
+
+func AddMatchingBlockUser(ctx *gin.Context) {
+	userID, ok := parseUserIDParam(ctx)
+	if !ok {
+		return
+	}
+
+	var input struct {
+		TargetUserID int64 `json:"target_user_id"`
+	}
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		resp.Error(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+	if input.TargetUserID == 0 || input.TargetUserID == userID {
+		resp.Error(ctx, http.StatusBadRequest, "invalid target_user_id")
+		return
+	}
+
+	repo := getRepo()
+	match, err := repo.GetByUserID(userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			resp.Error(ctx, http.StatusNotFound, "matching profile not found")
+			return
+		}
+		resp.Error(ctx, http.StatusInternalServerError, "query matching profile failed")
+		return
+	}
+
+	if err := repo.AddBlockUser(match.ID, input.TargetUserID); err != nil {
+		resp.Error(ctx, http.StatusInternalServerError, "add block user failed")
+		return
+	}
+
+	syncQueueUser(userID)
+	resp.OK(ctx, "block user added", nil)
+}
+
+func RemoveMatchingBlockUser(ctx *gin.Context) {
+	userID, ok := parseUserIDParam(ctx)
+	if !ok {
+		return
+	}
+
+	targetIDStr := ctx.Param("target_user_id")
+	targetID, err := strconv.ParseInt(targetIDStr, 10, 64)
+	if err != nil || targetID <= 0 {
+		resp.Error(ctx, http.StatusBadRequest, "invalid target_user_id")
+		return
+	}
+
+	repo := getRepo()
+	match, err := repo.GetByUserID(userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			resp.Error(ctx, http.StatusNotFound, "matching profile not found")
+			return
+		}
+		resp.Error(ctx, http.StatusInternalServerError, "query matching profile failed")
+		return
+	}
+
+	if err := repo.RemoveBlockUser(match.ID, targetID); err != nil {
+		resp.Error(ctx, http.StatusInternalServerError, "remove block user failed")
+		return
+	}
+
+	syncQueueUser(userID)
+	resp.OK(ctx, "block user removed", nil)
 }
 
 func GetMatchingPerson(ctx *gin.Context) {
@@ -147,31 +393,29 @@ func GetMatchingPerson(ctx *gin.Context) {
 }
 
 func LookMatchingStatus(ctx *gin.Context) {
-	id := ctx.Param("user_id")
-	userID, err := strconv.ParseInt(id, 10, 64)
-	if err != nil {
-		resp.Error(ctx, http.StatusBadRequest, err)
-		return
-	}
-	_, ok := matchedList.matchedList.Load(userID)
+	userID, ok := parseUserIDParam(ctx)
 	if !ok {
-		resp.Error(ctx, http.StatusNotFound, "你还没有加入匹配队列")
 		return
 	}
-	resp.OK(ctx, "你正在匹配队列中", nil)
+
+	_, inQueue := matchedList.matchedList.Load(userID)
+	if !inQueue {
+		resp.Error(ctx, http.StatusNotFound, "user is not in matching queue")
+		return
+	}
+
+	resp.OK(ctx, "user is in matching queue", nil)
 }
 
 func QuitMatching(ctx *gin.Context) {
-	id := ctx.Param("user_id")
-	userID, err := strconv.ParseInt(id, 10, 64)
-	if err != nil {
-		resp.Error(ctx, http.StatusBadRequest, err)
+	userID, ok := parseUserIDParam(ctx)
+	if !ok {
 		return
 	}
 
-	_, ok := matchedList.matchedList.Load(userID)
-	if !ok {
-		resp.Error(ctx, http.StatusNotFound, "你还没有加入匹配队列")
+	_, inQueue := matchedList.matchedList.Load(userID)
+	if !inQueue {
+		resp.Error(ctx, http.StatusNotFound, "user is not in matching queue")
 		return
 	}
 	matchedList.RemoveUserFromQueue(userID)
@@ -180,31 +424,29 @@ func QuitMatching(ctx *gin.Context) {
 	client, ok := MatchHub.clients[userID]
 	lock.Unlock()
 	if !ok {
-		resp.Error(ctx, http.StatusNotFound, "未找到用户的 WebSocket 连接")
+		resp.Error(ctx, http.StatusNotFound, "user websocket connection not found")
 		return
 	}
-	event := models.MatchEvent{
+
+	sendEvent(client, models.MatchEvent{
 		Type:    "cancelled",
 		SelfID:  userID,
 		PeerID:  0,
-		Message: "你已退出匹配队列",
+		Message: "you have quit matching queue",
 		Code:    200,
-	}
-	msg, _ := json.Marshal(event)
-	client.send <- msg
+	})
+	resp.OK(ctx, "quit success", nil)
 }
 
 func HandleMatching(ctx *gin.Context) {
-	id := ctx.Param("user_id")
-	userID, err := strconv.ParseInt(id, 10, 64)
-	if err != nil {
-		resp.Error(ctx, http.StatusBadRequest, err.Error())
+	userID, ok := parseUserIDParam(ctx)
+	if !ok {
 		return
 	}
 
 	conn, err := upgrader.Upgrade(ctx.Writer, ctx.Request, nil)
 	if err != nil {
-		resp.Error(ctx, http.StatusInternalServerError, err)
+		resp.Error(ctx, http.StatusInternalServerError, err.Error())
 		return
 	}
 	global.Logger.Infof("已与用户:%d 建立 WebSocket 连接", userID)
@@ -221,52 +463,37 @@ func HandleMatching(ctx *gin.Context) {
 	// 启动定时器
 	go client.client.checkLimitTimer(userID)
 
-	for {
-		var user models.Matching
-		// 拿一下匹配的软件
-		err = conn.ReadJSON(&user)
-		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				global.Logger.Errorf("用户:%d 连接异常:%v", userID, err)
-				event := models.MatchEvent{
-					Type:    "error",
-					SelfID:  userID,
-					PeerID:  0,
-					Message: err.Error(),
-					Code:    500,
-				}
-				msg, _ := json.Marshal(event)
-				client.client.send <- msg
-			}
-			break
+	user, err := getRepo().GetByUserID(userID)
+	if err != nil {
+		global.Logger.Errorf("用户:%d 连接异常:%v", userID, err)
+		event := models.MatchEvent{
+			Type:    "error",
+			SelfID:  userID,
+			PeerID:  0,
+			Message: err.Error(),
+			Code:    500,
 		}
-		if userID != user.UserID {
-			event := models.MatchEvent{
-				Type:    "error",
-				SelfID:  userID,
-				PeerID:  0,
-				Message: "用户ID不匹配",
-				Code:    400,
-			}
-			msg, _ := json.Marshal(event)
-			client.client.send <- msg
-			break
-		}
-
-		if _, ok := matchedList.matchedList.Load(user.UserID); ok {
-			event := models.MatchEvent{
-				Type:    "error",
-				SelfID:  userID,
-				PeerID:  0,
-				Message: "你已在匹配队列中，请勿重复匹配",
-				Code:    409,
-			}
-			msg, _ := json.Marshal(event)
-			client.client.send <- msg
-			break
-		}
-
-		MatchHub.match <- user
-		client.client.limitTimer <- user.LimitTime
+		sendEvent(client.client, event)
+		return
 	}
+
+	if userID != user.UserID {
+		sendEvent(client.client, models.MatchEvent{Type: "error", SelfID: userID, Message: "用户ID不匹配", Code: 400})
+		return
+	}
+
+	if _, ok := matchedList.matchedList.Load(user.UserID); ok {
+		event := models.MatchEvent{
+			Type:    "error",
+			SelfID:  userID,
+			PeerID:  0,
+			Message: "你已在匹配队列中，请勿重复匹配",
+			Code:    409,
+		}
+		sendEvent(client.client, event)
+		return
+	}
+
+	MatchHub.match <- user
+	client.client.limitTimer <- user.ExpireAt
 }

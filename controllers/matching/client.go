@@ -16,12 +16,6 @@ type Client struct {
 	close      chan bool   // 关闭通道
 }
 
-/*
-	type SendMessage struct {
-		MessageType int8 // 0: 匹配成功 ; 1: 发生意外错误
-		Message     string
-	}
-*/
 func NewClient(hub *Hub, conn *websocket.Conn) *Client {
 	return &Client{
 		hub:        hub,
@@ -33,7 +27,7 @@ func NewClient(hub *Hub, conn *websocket.Conn) *Client {
 }
 
 func (c *Client) checkLimitTimer(id int64) {
-	timer := time.NewTimer(0)
+	timer := time.NewTimer(24 * time.Hour)
 	timer.Stop()
 	defer func() {
 		global.Logger.Infof("用户:%d 已退出匹配队列,关闭定时器", id)
