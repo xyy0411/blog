@@ -35,7 +35,7 @@ func parseUserIDParam(ctx *gin.Context) (int64, bool) {
 	id := ctx.Param("user_id")
 	userID, err := strconv.ParseInt(id, 10, 64)
 	if err != nil {
-		resp.Error(ctx, http.StatusBadRequest, "invalid user_id")
+		resp.Error(ctx, http.StatusBadRequest, "user_id 参数无效")
 		return 0, false
 	}
 	return userID, true
@@ -80,16 +80,16 @@ func CreateMatchingProfile(ctx *gin.Context) {
 	}
 
 	if input.UserID == 0 || strings.TrimSpace(input.UserName) == "" {
-		resp.Error(ctx, http.StatusBadRequest, "user_id and user_name are required")
+		resp.Error(ctx, http.StatusBadRequest, "user_id 和 user_name 不能为空")
 		return
 	}
 
 	repo := getRepo()
 	if _, err := repo.GetByUserID(input.UserID); err == nil {
-		resp.Error(ctx, http.StatusConflict, "matching profile already exists")
+		resp.Error(ctx, http.StatusConflict, "匹配资料已存在")
 		return
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-		resp.Error(ctx, http.StatusInternalServerError, "query matching profile failed")
+		resp.Error(ctx, http.StatusInternalServerError, "查询匹配资料失败")
 		return
 	}
 
@@ -113,11 +113,11 @@ func CreateMatchingProfile(ctx *gin.Context) {
 	}
 
 	if err := repo.CreateMatchingWithChildren(&match); err != nil {
-		resp.Error(ctx, http.StatusInternalServerError, "create matching profile failed")
+		resp.Error(ctx, http.StatusInternalServerError, "创建匹配资料失败")
 		return
 	}
 
-	resp.OK(ctx, "created", map[string]any{"matching": match})
+	resp.OK(ctx, "创建成功", map[string]any{"matching": match})
 }
 
 func GetMatchingProfile(ctx *gin.Context) {
@@ -129,10 +129,10 @@ func GetMatchingProfile(ctx *gin.Context) {
 	match, err := getRepo().GetByUserID(userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			resp.Error(ctx, http.StatusNotFound, "matching profile not found")
+			resp.Error(ctx, http.StatusNotFound, "未找到匹配资料")
 			return
 		}
-		resp.Error(ctx, http.StatusInternalServerError, "query matching profile failed")
+		resp.Error(ctx, http.StatusInternalServerError, "查询匹配资料失败")
 		return
 	}
 
@@ -148,10 +148,10 @@ func GetMatchingSoftwareList(ctx *gin.Context) {
 	match, err := getRepo().GetByUserID(userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			resp.Error(ctx, http.StatusNotFound, "matching profile not found")
+			resp.Error(ctx, http.StatusNotFound, "未找到匹配资料")
 			return
 		}
-		resp.Error(ctx, http.StatusInternalServerError, "query matching profile failed")
+		resp.Error(ctx, http.StatusInternalServerError, "查询匹配资料失败")
 		return
 	}
 
@@ -167,10 +167,10 @@ func GetMatchingBlockUserList(ctx *gin.Context) {
 	match, err := getRepo().GetByUserID(userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			resp.Error(ctx, http.StatusNotFound, "matching profile not found")
+			resp.Error(ctx, http.StatusNotFound, "未找到匹配资料")
 			return
 		}
-		resp.Error(ctx, http.StatusInternalServerError, "query matching profile failed")
+		resp.Error(ctx, http.StatusInternalServerError, "查询匹配资料失败")
 		return
 	}
 
@@ -196,17 +196,17 @@ func UpdateMatchingExpire(ctx *gin.Context) {
 		return
 	}
 	if input.ExpireAt <= 0 {
-		resp.Error(ctx, http.StatusBadRequest, "expire_at must be greater than 0")
+		resp.Error(ctx, http.StatusBadRequest, "expire_at 必须大于 0")
 		return
 	}
 
 	if err := getRepo().UpdateExpire(userID, input.ExpireAt); err != nil {
-		resp.Error(ctx, http.StatusInternalServerError, "update expire_at failed")
+		resp.Error(ctx, http.StatusInternalServerError, "更新 expire_at 失败")
 		return
 	}
 
 	syncQueueUser(userID)
-	resp.OK(ctx, "updated", nil)
+	resp.OK(ctx, "更新成功", nil)
 }
 
 func GetMatchingExpire(ctx *gin.Context) {
@@ -218,10 +218,10 @@ func GetMatchingExpire(ctx *gin.Context) {
 	match, err := getRepo().GetByUserID(userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			resp.Error(ctx, http.StatusNotFound, "matching profile not found")
+			resp.Error(ctx, http.StatusNotFound, "未找到匹配资料")
 			return
 		}
-		resp.Error(ctx, http.StatusInternalServerError, "query matching profile failed")
+		resp.Error(ctx, http.StatusInternalServerError, "查询匹配资料失败")
 		return
 	}
 
@@ -245,11 +245,11 @@ func AddMatchingSoftware(ctx *gin.Context) {
 
 	input.Name = strings.TrimSpace(input.Name)
 	if input.Name == "" {
-		resp.Error(ctx, http.StatusBadRequest, "software name is required")
+		resp.Error(ctx, http.StatusBadRequest, "软件名称不能为空")
 		return
 	}
 	if input.Type < 0 || input.Type > 2 {
-		resp.Error(ctx, http.StatusBadRequest, "software type must be 0/1/2")
+		resp.Error(ctx, http.StatusBadRequest, "软件类型必须为 0/1/2")
 		return
 	}
 
@@ -257,32 +257,32 @@ func AddMatchingSoftware(ctx *gin.Context) {
 	match, err := repo.GetByUserID(userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			resp.Error(ctx, http.StatusNotFound, "matching profile not found")
+			resp.Error(ctx, http.StatusNotFound, "未找到匹配资料")
 			return
 		}
-		resp.Error(ctx, http.StatusInternalServerError, "query matching profile failed")
+		resp.Error(ctx, http.StatusInternalServerError, "查询匹配资料失败")
 		return
 	}
 
 	for _, s := range match.OnlineSoftwares {
 		if s.Name == input.Name {
 			if err := repo.UpdateOnlineSoftwareType(match.ID, input.Name, input.Type); err != nil {
-				resp.Error(ctx, http.StatusInternalServerError, "update software failed")
+				resp.Error(ctx, http.StatusInternalServerError, "更新软件失败")
 				return
 			}
 			syncQueueUser(userID)
-			resp.OK(ctx, "software updated", nil)
+			resp.OK(ctx, "软件更新成功", nil)
 			return
 		}
 	}
 
 	if err := repo.AddOnlineSoftware(match.ID, models.OnlineSoftware{Name: input.Name, Type: input.Type}); err != nil {
-		resp.Error(ctx, http.StatusInternalServerError, "add software failed")
+		resp.Error(ctx, http.StatusInternalServerError, "添加软件失败")
 		return
 	}
 
 	syncQueueUser(userID)
-	resp.OK(ctx, "software added", nil)
+	resp.OK(ctx, "软件添加成功", nil)
 }
 
 func RemoveMatchingSoftware(ctx *gin.Context) {
@@ -293,7 +293,7 @@ func RemoveMatchingSoftware(ctx *gin.Context) {
 
 	softwareName := strings.TrimSpace(ctx.Param("software_name"))
 	if softwareName == "" {
-		resp.Error(ctx, http.StatusBadRequest, "software_name is required")
+		resp.Error(ctx, http.StatusBadRequest, "software_name 不能为空")
 		return
 	}
 
@@ -301,20 +301,20 @@ func RemoveMatchingSoftware(ctx *gin.Context) {
 	match, err := repo.GetByUserID(userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			resp.Error(ctx, http.StatusNotFound, "matching profile not found")
+			resp.Error(ctx, http.StatusNotFound, "未找到匹配资料")
 			return
 		}
-		resp.Error(ctx, http.StatusInternalServerError, "query matching profile failed")
+		resp.Error(ctx, http.StatusInternalServerError, "查询匹配资料失败")
 		return
 	}
 
 	if err := repo.RemoveOnlineSoftware(match.ID, softwareName); err != nil {
-		resp.Error(ctx, http.StatusInternalServerError, "remove software failed")
+		resp.Error(ctx, http.StatusInternalServerError, "移除软件失败")
 		return
 	}
 
 	syncQueueUser(userID)
-	resp.OK(ctx, "software removed", nil)
+	resp.OK(ctx, "软件移除成功", nil)
 }
 
 func AddMatchingBlockUser(ctx *gin.Context) {
@@ -331,7 +331,7 @@ func AddMatchingBlockUser(ctx *gin.Context) {
 		return
 	}
 	if input.TargetUserID == 0 || input.TargetUserID == userID {
-		resp.Error(ctx, http.StatusBadRequest, "invalid target_user_id")
+		resp.Error(ctx, http.StatusBadRequest, "target_user_id 参数无效")
 		return
 	}
 
@@ -339,20 +339,20 @@ func AddMatchingBlockUser(ctx *gin.Context) {
 	match, err := repo.GetByUserID(userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			resp.Error(ctx, http.StatusNotFound, "matching profile not found")
+			resp.Error(ctx, http.StatusNotFound, "未找到匹配资料")
 			return
 		}
-		resp.Error(ctx, http.StatusInternalServerError, "query matching profile failed")
+		resp.Error(ctx, http.StatusInternalServerError, "查询匹配资料失败")
 		return
 	}
 
 	if err := repo.AddBlockUser(match.ID, input.TargetUserID); err != nil {
-		resp.Error(ctx, http.StatusInternalServerError, "add block user failed")
+		resp.Error(ctx, http.StatusInternalServerError, "添加屏蔽用户失败")
 		return
 	}
 
 	syncQueueUser(userID)
-	resp.OK(ctx, "block user added", nil)
+	resp.OK(ctx, "屏蔽用户添加成功", nil)
 }
 
 func RemoveMatchingBlockUser(ctx *gin.Context) {
@@ -364,7 +364,7 @@ func RemoveMatchingBlockUser(ctx *gin.Context) {
 	targetIDStr := ctx.Param("target_user_id")
 	targetID, err := strconv.ParseInt(targetIDStr, 10, 64)
 	if err != nil || targetID <= 0 {
-		resp.Error(ctx, http.StatusBadRequest, "invalid target_user_id")
+		resp.Error(ctx, http.StatusBadRequest, "target_user_id 参数无效")
 		return
 	}
 
@@ -372,20 +372,20 @@ func RemoveMatchingBlockUser(ctx *gin.Context) {
 	match, err := repo.GetByUserID(userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			resp.Error(ctx, http.StatusNotFound, "matching profile not found")
+			resp.Error(ctx, http.StatusNotFound, "未找到匹配资料")
 			return
 		}
-		resp.Error(ctx, http.StatusInternalServerError, "query matching profile failed")
+		resp.Error(ctx, http.StatusInternalServerError, "查询匹配资料失败")
 		return
 	}
 
 	if err := repo.RemoveBlockUser(match.ID, targetID); err != nil {
-		resp.Error(ctx, http.StatusInternalServerError, "remove block user failed")
+		resp.Error(ctx, http.StatusInternalServerError, "移除屏蔽用户失败")
 		return
 	}
 
 	syncQueueUser(userID)
-	resp.OK(ctx, "block user removed", nil)
+	resp.OK(ctx, "屏蔽用户移除成功", nil)
 }
 
 func GetMatchingPerson(ctx *gin.Context) {
@@ -400,11 +400,11 @@ func LookMatchingStatus(ctx *gin.Context) {
 
 	_, inQueue := matchedList.matchedList.Load(userID)
 	if !inQueue {
-		resp.Error(ctx, http.StatusNotFound, "user is not in matching queue")
+		resp.Error(ctx, http.StatusNotFound, "用户不在匹配队列中")
 		return
 	}
 
-	resp.OK(ctx, "user is in matching queue", nil)
+	resp.OK(ctx, "用户正在匹配队列中", nil)
 }
 
 func QuitMatching(ctx *gin.Context) {
@@ -415,7 +415,7 @@ func QuitMatching(ctx *gin.Context) {
 
 	_, inQueue := matchedList.matchedList.Load(userID)
 	if !inQueue {
-		resp.Error(ctx, http.StatusNotFound, "user is not in matching queue")
+		resp.Error(ctx, http.StatusNotFound, "用户不在匹配队列中")
 		return
 	}
 	matchedList.RemoveUserFromQueue(userID)
@@ -424,7 +424,7 @@ func QuitMatching(ctx *gin.Context) {
 	client, ok := MatchHub.clients[userID]
 	lock.Unlock()
 	if !ok {
-		resp.Error(ctx, http.StatusNotFound, "user websocket connection not found")
+		resp.Error(ctx, http.StatusNotFound, "未找到用户的 WebSocket 连接")
 		return
 	}
 
@@ -479,6 +479,11 @@ func HandleMatching(ctx *gin.Context) {
 
 	if userID != user.UserID {
 		sendEvent(client.client, models.MatchEvent{Type: "error", SelfID: userID, Message: "用户ID不匹配", Code: 400})
+		return
+	}
+
+	if len(user.OnlineSoftwares) == 0 {
+		sendEvent(client.client, models.MatchEvent{Type: "error", SelfID: userID, Message: "未配置可匹配软件，已停止匹配", Code: 400})
 		return
 	}
 
