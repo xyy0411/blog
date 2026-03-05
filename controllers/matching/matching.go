@@ -65,6 +65,32 @@ func syncQueueUser(userID int64) {
 	matchedList.AddUserToQueue(&user)
 }
 
+func ensureDefaultMatchingProfile(userID int64) (models.Matching, error) {
+	defaultSoftwares := []models.OnlineSoftware{
+		{Name: "uu", Type: 0},
+		{Name: "to", Type: 0},
+	}
+
+	user, err := getRepo().GetByUserID(userID)
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return models.Matching{}, err
+		}
+
+		return models.Matching{
+			UserID:          userID,
+			UserName:        strconv.FormatInt(userID, 10),
+			OnlineSoftwares: defaultSoftwares,
+		}, nil
+	}
+
+	if len(user.OnlineSoftwares) == 0 {
+		user.OnlineSoftwares = defaultSoftwares
+	}
+
+	return user, nil
+}
+
 func CreateMatchingProfile(ctx *gin.Context) {
 	var input struct {
 		UserID          int64                   `json:"user_id"`
@@ -463,7 +489,7 @@ func HandleMatching(ctx *gin.Context) {
 	// 启动定时器
 	go client.client.checkLimitTimer(userID)
 
-	user, err := getRepo().GetByUserID(userID)
+	user, err := ensureDefaultMatchingProfile(userID)
 	if err != nil {
 		global.Logger.Errorf("用户:%d 连接异常:%v", userID, err)
 		event := models.MatchEvent{
@@ -479,11 +505,6 @@ func HandleMatching(ctx *gin.Context) {
 
 	if userID != user.UserID {
 		sendEvent(client.client, models.MatchEvent{Type: "error", SelfID: userID, Message: "用户ID不匹配", Code: 400})
-		return
-	}
-
-	if len(user.OnlineSoftwares) == 0 {
-		sendEvent(client.client, models.MatchEvent{Type: "error", SelfID: userID, Message: "未配置可匹配软件，已停止匹配", Code: 400})
 		return
 	}
 
