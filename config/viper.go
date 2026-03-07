@@ -10,6 +10,9 @@ type Config struct {
 		Name string
 		Port string
 	}
+	Matching struct {
+		CooldownMinutes int
+	}
 	Database struct {
 		Dsn         string
 		MaxOpenCons int

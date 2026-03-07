@@ -2,12 +2,16 @@ package matching
 
 import (
 	"strconv"
+	"time"
 
 	"github.com/RomiChan/syncx"
+	"github.com/xyy0411/blog/config"
 	"github.com/xyy0411/blog/global"
 	"github.com/xyy0411/blog/models"
 	"github.com/xyy0411/blog/utils"
 )
+
+const defaultMatchCooldownMinutes = 30
 
 type Manager struct {
 	matchedList syncx.Map[int64, *models.Matching]
@@ -42,6 +46,34 @@ func (mm *Manager) RemoveUserFromQueue(userID int64) {
 
 func (mm *Manager) GenerateMatchID() string {
 	return strconv.FormatInt(mm.idGen.NextID(), 10)
+}
+
+func (mm *Manager) matchCooldownMinutes() int {
+	if config.AppConfig == nil || config.AppConfig.Matching.CooldownMinutes <= 0 {
+		return defaultMatchCooldownMinutes
+	}
+	return config.AppConfig.Matching.CooldownMinutes
+}
+
+func (mm *Manager) inMatchCooldown(userID, targetUserID int64) bool {
+	if global.DB == nil {
+		return false
+	}
+
+	cutoff := time.Now().Add(-time.Duration(mm.matchCooldownMinutes()) * time.Minute)
+	var recentCount int64
+	err := global.DB.Model(&models.MatchingRecord{}).
+		Where(
+			"created_at >= ? AND ((user_id = ? AND peer_id = ?) OR (user_id = ? AND peer_id = ?))",
+			cutoff, userID, targetUserID, targetUserID, userID,
+		).
+		Count(&recentCount).Error
+	if err != nil {
+		global.Logger.Errorf("查询匹配冷却期失败: %v", err)
+		return false
+	}
+
+	return recentCount > 0
 }
 
 func (mm *Manager) saveMatchingRecord(user, targetUser models.Matching, matchID string) {
@@ -90,7 +122,7 @@ func (mm *Manager) MatchUsers(user models.Matching) {
 
 	var targetUser models.Matching
 	mm.matchedList.Range(func(key int64, value *models.Matching) bool {
-		if user.UserID != value.UserID && user.IsMatch(*value) {
+		if user.UserID != value.UserID && user.IsMatch(*value) && !mm.inMatchCooldown(user.UserID, value.UserID) {
 			targetUser = *value
 			return false
 		}
