@@ -49,12 +49,13 @@ type MatchingSoftWares []MatchingSoftWare
 
 // IsMatch 检查是否匹配
 func (user1 Matching) IsMatch(user2 Matching) (isM bool) {
-	blocked := make(map[int64]struct{})
 	for _, blockUser := range user1.BlockUsers {
-		blocked[blockUser.UserID] = struct{}{}
+		if blockUser.UserID == user2.UserID {
+			return
+		}
 	}
 	for _, blockUser := range user2.BlockUsers {
-		if _, exists := blocked[blockUser.UserID]; exists {
+		if blockUser.UserID == user1.UserID {
 			return
 		}
 	}
