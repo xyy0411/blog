@@ -81,7 +81,7 @@ func (r *Repo) RemoveBlockUser(matchingID, userID int64) error {
 }
 
 func (r *Repo) AddBlockUser(matchingID, userID int64) error {
-	return r.db.Create(&models.BlockUser{
+	return r.db.Save(&models.BlockUser{
 		MatchingID: matchingID,
 		UserID:     userID,
 	}).Error
