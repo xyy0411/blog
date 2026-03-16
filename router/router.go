@@ -42,6 +42,9 @@ func SetupRouter() *gin.Engine {
 		matched.POST("/profile/:user_id/block-user", matching.AddMatchingBlockUser)
 		matched.DELETE("/profile/:user_id/block-user/:target_user_id", matching.RemoveMatchingBlockUser)
 
+		matched.GET("/record/all", matching.GetAllMatchingRecords)
+		matched.GET("/record/today", matching.GetTodayMatchingRecords)
+
 		matched.GET("/status/:user_id", matching.LookMatchingStatus)
 		matched.GET("/:user_id", matching.HandleMatching)
 		matched.DELETE("/:user_id", matching.QuitMatching)
