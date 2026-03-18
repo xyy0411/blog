@@ -37,6 +37,7 @@
 <script setup lang="ts">
 import {ref} from "vue";
 import axios from "axios";
+import base, { apiUrl } from "@/api/api.ts";
 
 let emails = ref(``);
 let password = ref(``);
@@ -50,7 +51,7 @@ function registerUser() {
 }
 
 async function login() {
-  let url = `http://127.0.0.1:3000/api/auth/login`
+  const url = apiUrl(base.login)
   try {
     const response = await axios.post(url, {
       name: emails.value,

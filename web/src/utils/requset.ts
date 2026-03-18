@@ -1,51 +1,40 @@
-import axios from "axios";
-import base from "@/api/api.ts";
+import axios from 'axios';
+import base from '@/api/api.ts';
+import blogStore from '@/store/arlog.ts';
 
+const req = axios.create({
+  baseURL: base.url,
+  timeout: 5000,
+});
 
-const st = blogStore()
+req.interceptors.request.use(
+  (config) => {
+    const store = blogStore();
 
-/*创建请求对象*/
-const req = axios.create(
-  {
-    baseURL: base.url,
-    /*线上修改成请求当前域名*/
-
-    timeout: 5000,
-  }
-)
-/*注册请求拦截*/
-
-/*添加请求token*/
-/*所有post请求添加成json格式*/
-req.interceptors.request.use((config) => {
-
-    config.headers['token'] = st.token
-
-    if (config.method === 'POST') {
-      config.headers.append('Content-Type', 'application/json');
+    if (store.token) {
+      config.headers.token = store.token;
     }
-    return config
+
+    if (config.method?.toUpperCase() === 'POST') {
+      config.headers['Content-Type'] = 'application/json';
+    }
+
+    return config;
   },
-  error => Promise.reject(error)
+  (error) => Promise.reject(error),
 );
 
+req.interceptors.response.use(
+  (response) => {
+    const data = response.data;
 
-// 响应拦截器：统一处理错误响应
-// 添加响应拦截器
-req.interceptors.response.use(res => {
-
-    // 对响应数据做点什么
-    const data = res.data
-    // 访问成功 清理 之前的请求
-    $message.destroy("loadingMessage")
-    if (data.code !== 200) {
-      // 统一处理非200的状态码
-      window.res.error(data.msg)
-      return
+    if (data?.code && data.code !== 200) {
+      return Promise.reject(new Error(data.msg || '请求失败'));
     }
-    return res
-  }, error => Promise.reject(error)
-)
 
+    return response;
+  },
+  (error) => Promise.reject(error),
+);
 
-export default req
+export default req;

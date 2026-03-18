@@ -161,6 +161,7 @@
 defineOptions({ name: 'MatchingStatsPage' });
 
 import axios from 'axios';
+import base, { apiUrl } from '@/api/api.ts';
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
@@ -200,8 +201,8 @@ const stats = reactive({
 });
 
 const endpointMap = {
-  today: 'http://127.0.0.1:3000/api/matching/record/today',
-  all: 'http://127.0.0.1:3000/api/matching/record/all',
+  today: apiUrl(base.matchingToday),
+  all: apiUrl(base.matchingAll),
 } as const;
 
 const currentLabel = computed(() =>
