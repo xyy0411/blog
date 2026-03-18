@@ -1,6 +1,12 @@
 package router
 
 import (
+	"net/http"
+	"os"
+	"path"
+	"path/filepath"
+	"strings"
+
 	"github.com/gin-gonic/gin"
 	"github.com/xyy0411/blog/controllers"
 	"github.com/xyy0411/blog/controllers/matching"
@@ -50,5 +56,47 @@ func SetupRouter() *gin.Engine {
 		matched.DELETE("/:user_id", matching.QuitMatching)
 		matched.GET("/person", matching.GetMatchingPerson)
 	}
+
+	registerWebRoutes(r)
+
 	return r
+}
+
+func registerWebRoutes(r *gin.Engine) {
+	distDir := filepath.Join("web", "dist")
+	indexPath := filepath.Join(distDir, "index.html")
+
+	r.NoRoute(func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/api") {
+			c.JSON(http.StatusNotFound, gin.H{"message": "接口不存在，请检查请求路径是否正确。"})
+			return
+		}
+
+		requestPath := strings.TrimPrefix(path.Clean(c.Request.URL.Path), "/")
+		if requestPath != "" && requestPath != "." {
+			assetPath := filepath.Join(distDir, filepath.FromSlash(requestPath))
+			if fileExists(assetPath) {
+				c.File(assetPath)
+				return
+			}
+		}
+
+		if fileExists(indexPath) {
+			c.File(indexPath)
+			return
+		}
+
+		c.JSON(http.StatusNotFound, gin.H{
+			"message": "页面不存在，请检查路径是否正确；如果是前端页面，请先在 web 目录执行 npm run build。",
+		})
+	})
+}
+
+func fileExists(filePath string) bool {
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return false
+	}
+
+	return !info.IsDir()
 }
