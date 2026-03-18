@@ -63,10 +63,27 @@
                 <div class="section-header">
                   <div>
                     <h2>匹配成功统计图</h2>
-                    <p>X 轴为 name[qq号]，Y 轴为该用户成功匹配的次数。</p>
+                    <p>X 轴为 name[qq号]，Y 轴为该用户成功匹配的次数；悬停柱子可快速预览，点击柱子可在图表外固定查看详情。</p>
                   </div>
                 </div>
               </template>
+
+              <transition name="detail-fade">
+                <div v-if="selectedBarDetail" class="selected-bar-panel">
+                  <div class="selected-bar-panel__header">
+                    <div>
+                      <span class="detail-caption">已固定的用户详情</span>
+                      <strong>{{ selectedBarDetail.name }}</strong>
+                    </div>
+                    <span class="selected-bar-panel__hint">再次点击同一柱子可取消固定</span>
+                  </div>
+                  <div class="selected-bar-panel__meta">
+                    <span>QQ号：{{ selectedBarDetail.id || '-' }}</span>
+                    <span>成功匹配次数：{{ selectedBarDetail.count }}</span>
+                    <span>上次匹配成功时间：{{ formatTime(selectedBarDetail.lastMatchedAt) }}</span>
+                  </div>
+                </div>
+              </transition>
 
               <div class="chart-scroll">
                 <div class="chart-wrapper" :style="chartWrapperStyle">
@@ -90,35 +107,39 @@
                         class="bar-column"
                       >
                         <div class="bar-track">
-                          <span class="bar-value">{{ item.count }}</span>
-                          <button
-                            type="button"
-                            class="bar"
-                            :class="{ 'is-active': activeBarKey === item.key }"
-                            :style="{ height: `${item.heightPx}px` }"
-                            :title="`${item.label}：${item.count}`"
-                            @mouseenter="setHoveredBar(item.key)"
-                            @mouseleave="clearHoveredBar(item.key)"
-                            @focus="setHoveredBar(item.key)"
-                            @blur="clearHoveredBar(item.key)"
-                            @click="toggleSelectedBar(item.key)"
-                          />
+                          <div class="bar-interactive">
+                            <transition name="detail-fade">
+                              <div
+                                v-if="hoveredBarKey === item.key"
+                                class="bar-popover"
+                              >
+                                <span class="detail-caption">悬浮查看</span>
+                                <strong>{{ item.name }}</strong>
+                                <span>QQ号：{{ item.id || '-' }}</span>
+                                <span>成功匹配次数：{{ item.count }}</span>
+                                <span>上次匹配成功时间：{{ formatTime(item.lastMatchedAt) }}</span>
+                              </div>
+                            </transition>
+                            <span class="bar-value">{{ item.count }}</span>
+                            <button
+                              type="button"
+                              class="bar"
+                              :class="{ 'is-active': activeBarKey === item.key }"
+                              :style="{ height: `${item.heightPx}px` }"
+                              :title="`${item.label}：${item.count}`"
+                              @mouseenter="setHoveredBar(item.key)"
+                              @mouseleave="clearHoveredBar(item.key)"
+                              @focus="setHoveredBar(item.key)"
+                              @blur="clearHoveredBar(item.key)"
+                              @click="toggleSelectedBar(item.key)"
+                            />
+                          </div>
                         </div>
                         <span class="bar-label">{{ item.label }}</span>
                       </div>
                     </div>
                   </div>
                 </div>
-
-                <transition name="detail-fade">
-                  <div v-if="activeBarDetail" class="active-bar-detail">
-                    <span class="detail-caption">当前选中用户</span>
-                    <strong>{{ activeBarDetail.name }}</strong>
-                    <span>QQ号：{{ activeBarDetail.id || '-' }}</span>
-                    <span>成功匹配次数：{{ activeBarDetail.count }}</span>
-                    <span>上次匹配成功时间：{{ formatTime(activeBarDetail.lastMatchedAt) }}</span>
-                  </div>
-                </transition>
               </div>
             </el-card>
 
@@ -308,8 +329,8 @@ const chartWrapperStyle = computed(() => {
 
 const activeBarKey = computed(() => hoveredBarKey.value || selectedBarKey.value);
 
-const activeBarDetail = computed(() =>
-  chartData.value.find((item) => item.key === activeBarKey.value) ?? null,
+const selectedBarDetail = computed(() =>
+  chartData.value.find((item) => item.key === selectedBarKey.value) ?? null,
 );
 
 const setHoveredBar = (key: string) => {
@@ -440,7 +461,48 @@ onMounted(() => {
 
 .chart-scroll {
   overflow-x: auto;
-  padding-bottom: 8px;
+  overflow-y: visible;
+  padding: 8px 4px 12px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.selected-bar-panel {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding: 16px 18px;
+  border: 1px solid #d9ecff;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgb(236 245 255 / 96%), rgb(248 250 255 / 96%));
+  box-shadow: 0 12px 24px rgb(64 158 255 / 10%);
+}
+
+.selected-bar-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.selected-bar-panel__header strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 16px;
+  color: #303133;
+}
+
+.selected-bar-panel__hint {
+  color: #909399;
+  font-size: 12px;
+  text-align: right;
+}
+
+.selected-bar-panel__meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px 14px;
+  color: #303133;
+  font-size: 14px;
 }
 
 .chart-wrapper {
@@ -448,7 +510,7 @@ onMounted(() => {
   grid-template-columns: 56px minmax(0, 1fr);
   gap: 16px;
   align-items: stretch;
-  min-height: 380px;
+  min-height: 460px;
 }
 
 .chart-y-axis {
@@ -456,7 +518,7 @@ onMounted(() => {
   flex-direction: column;
   justify-content: space-between;
   align-items: flex-end;
-  padding: 8px 0 72px;
+  padding: 120px 0 72px;
   color: #909399;
   font-size: 12px;
 }
@@ -464,13 +526,13 @@ onMounted(() => {
 .chart-area {
   position: relative;
   display: flex;
-  min-height: 380px;
-  padding-top: 8px;
+  min-height: 460px;
+  padding-top: 120px;
 }
 
 .chart-grid {
   position: absolute;
-  inset: 8px 0 72px;
+  inset: 120px 0 72px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -507,10 +569,18 @@ onMounted(() => {
   display: flex;
   flex: 1;
   width: 100%;
-  min-height: 280px;
+  min-height: 268px;
   flex-direction: column;
   align-items: center;
   justify-content: end;
+}
+
+.bar-interactive {
+  position: relative;
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
   gap: 8px;
 }
 
@@ -549,21 +619,44 @@ onMounted(() => {
   word-break: break-word;
 }
 
-.active-bar-detail {
+.bar-popover {
+  position: absolute;
+  inset: auto auto calc(100% + 12px) 50%;
+  z-index: 3;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
-  margin-top: 16px;
-  padding: 16px 18px;
-  border: 1px solid #d9ecff;
-  border-radius: 12px;
-  background: linear-gradient(135deg, rgb(236 245 255 / 96%), rgb(248 250 255 / 96%));
+  min-width: 196px;
+  max-width: min(260px, calc(100vw - 56px));
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid rgb(191 225 255 / 90%);
+  border-radius: 14px;
+  background: rgb(255 255 255 / 96%);
+  box-shadow: 0 18px 36px rgb(31 35 41 / 18%);
   color: #303133;
+  backdrop-filter: blur(12px);
+  transform: translateX(-50%);
+}
+
+.bar-popover::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  width: 14px;
+  height: 14px;
+  border-right: 1px solid rgb(191 225 255 / 90%);
+  border-bottom: 1px solid rgb(191 225 255 / 90%);
+  background: rgb(255 255 255 / 96%);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.bar-popover strong {
+  font-size: 15px;
 }
 
 .detail-caption {
   color: #909399;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .detail-fade-enter-active,
@@ -579,21 +672,112 @@ onMounted(() => {
 
 @media (max-width: 768px) {
   .stats-page {
-    padding: 20px;
+    padding: 14px;
   }
 
   .page-header {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .page-header :deep(.el-button) {
+    width: 100%;
   }
 
   .button-group {
     width: 100%;
+    gap: 10px;
+    margin-bottom: 18px;
   }
 
   .button-group :deep(.el-button) {
-    flex: 1;
+    flex: 1 1 calc(50% - 5px);
+    min-height: 40px;
     margin-left: 0;
+    white-space: normal;
+  }
+
+  .summary-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+
+  .section-header h2 {
+    font-size: 16px;
+  }
+
+  .chart-scroll {
+    margin: 0 -8px;
+    padding: 4px 8px 12px;
+  }
+
+  .selected-bar-panel {
+    gap: 12px;
+    margin-bottom: 14px;
+    padding: 14px;
+  }
+
+  .selected-bar-panel__header {
+    flex-direction: column;
+  }
+
+  .selected-bar-panel__hint,
+  .selected-bar-panel__meta {
+    text-align: left;
+  }
+
+  .chart-wrapper {
+    grid-template-columns: 40px minmax(0, 1fr);
+    gap: 10px;
+    min-height: 400px;
+  }
+
+  .chart-y-axis {
+    padding: 108px 0 64px;
+    font-size: 11px;
+  }
+
+  .chart-area {
+    min-height: 400px;
+    padding-top: 108px;
+  }
+
+  .chart-grid {
+    inset: 108px 0 64px;
+  }
+
+  .bars-row {
+    grid-auto-columns: minmax(60px, 1fr);
+    gap: 10px;
+    padding: 0 4px;
+  }
+
+  .bar-track {
+    min-height: 228px;
+  }
+
+  .bar-popover {
+    min-width: 168px;
+    max-width: min(220px, calc(100vw - 40px));
+    padding: 12px 14px;
+    font-size: 12px;
+  }
+
+  .bar-label {
+    min-height: 40px;
+    font-size: 11px;
+  }
+
+  .detail-card :deep(.el-card__body),
+  .chart-card :deep(.el-card__body) {
+    padding: 14px;
+  }
+
+  .detail-card :deep(.el-table) {
+    font-size: 12px;
   }
 }
 </style>
