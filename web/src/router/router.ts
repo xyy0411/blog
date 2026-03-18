@@ -23,6 +23,11 @@ const router = createRouter({
       name: 'Register',
       component: () => import('@/views/register.vue')
     },
+    {
+      path: '/matching-stats',
+      name: 'MatchingStats',
+      component: () => import('@/views/matching-stats.vue')
+    },
   ]
 })
 
