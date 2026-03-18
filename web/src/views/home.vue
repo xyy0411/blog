@@ -33,6 +33,7 @@
 <script setup lang="ts">
 defineOptions({ name: 'HomePage' });
 import axios from 'axios';
+import base, { apiUrl } from '@/api/api.ts';
 import type { Article } from '@/models/article.ts';
 import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
@@ -40,7 +41,7 @@ import { useRouter } from 'vue-router';
 const router = useRouter();
 const searchQuery = ref('');
 const articles = ref<Article[]>([]);
-const searchUrl = 'http://127.0.0.1:3000/api/article/search';
+const searchUrl = apiUrl('/api/article/search');
 
 const onSearch = async () => {
   try {
@@ -60,7 +61,7 @@ const onSearch = async () => {
 
 const fetchAllArticles = async () => {
   try {
-    const allArticlesUrl = 'http://127.0.0.1:3000/api/article/all';
+    const allArticlesUrl = apiUrl(base.articleList);
     const response = await axios.get<{ data: Article[] }>(allArticlesUrl);
 
     if (response.status === 200) {
