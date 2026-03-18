@@ -89,17 +89,36 @@
                         :key="item.key"
                         class="bar-column"
                       >
-                        <span class="bar-value">{{ item.count }}</span>
-                        <div
-                          class="bar"
-                          :style="{ height: `${item.heightPercent}%` }"
-                          :title="`${item.label}：${item.count}`"
-                        />
+                        <div class="bar-track">
+                          <span class="bar-value">{{ item.count }}</span>
+                          <button
+                            type="button"
+                            class="bar"
+                            :class="{ 'is-active': activeBarKey === item.key }"
+                            :style="{ height: `${item.heightPx}px` }"
+                            :title="`${item.label}：${item.count}`"
+                            @mouseenter="setHoveredBar(item.key)"
+                            @mouseleave="clearHoveredBar(item.key)"
+                            @focus="setHoveredBar(item.key)"
+                            @blur="clearHoveredBar(item.key)"
+                            @click="toggleSelectedBar(item.key)"
+                          />
+                        </div>
                         <span class="bar-label">{{ item.label }}</span>
                       </div>
                     </div>
                   </div>
                 </div>
+
+                <transition name="detail-fade">
+                  <div v-if="activeBarDetail" class="active-bar-detail">
+                    <span class="detail-caption">当前选中用户</span>
+                    <strong>{{ activeBarDetail.name }}</strong>
+                    <span>QQ号：{{ activeBarDetail.id || '-' }}</span>
+                    <span>成功匹配次数：{{ activeBarDetail.count }}</span>
+                    <span>上次匹配成功时间：{{ formatTime(activeBarDetail.lastMatchedAt) }}</span>
+                  </div>
+                </transition>
               </div>
             </el-card>
 
@@ -188,13 +207,17 @@ interface UserChartItem {
   name: string;
   label: string;
   count: number;
-  heightPercent: number;
+  heightPx: number;
+  lastMatchedAt: string;
 }
 
 const router = useRouter();
 const loading = ref(false);
 const errorMessage = ref('');
 const activeView = ref<'today' | 'all'>('today');
+const hoveredBarKey = ref('');
+const selectedBarKey = ref('');
+const maxBarHeight = 240;
 const stats = reactive({
   total: 0,
   records: [] as MatchingRecord[],
@@ -210,10 +233,11 @@ const currentLabel = computed(() =>
 );
 
 const chartData = computed<UserChartItem[]>(() => {
-  const counter = new Map<string, Omit<UserChartItem, 'count' | 'heightPercent'>>();
+  const counter = new Map<string, Omit<UserChartItem, 'count' | 'heightPx' | 'lastMatchedAt'>>();
   const countMap = new Map<string, number>();
+  const lastMatchedMap = new Map<string, string>();
 
-  const upsertUser = (id: number, name: string) => {
+  const upsertUser = (id: number, name: string, createdAt: string) => {
     if (!id && !name) {
       return;
     }
@@ -231,11 +255,16 @@ const chartData = computed<UserChartItem[]>(() => {
     }
 
     countMap.set(key, (countMap.get(key) ?? 0) + 1);
+
+    const currentLastMatched = lastMatchedMap.get(key);
+    if (!currentLastMatched || new Date(createdAt).getTime() > new Date(currentLastMatched).getTime()) {
+      lastMatchedMap.set(key, createdAt);
+    }
   };
 
   stats.records.forEach((record) => {
-    upsertUser(record.user_id, record.user_name);
-    upsertUser(record.peer_id, record.peer_name);
+    upsertUser(record.user_id, record.user_name, record.created_at);
+    upsertUser(record.peer_id, record.peer_name, record.created_at);
   });
 
   const maxCount = Math.max(...countMap.values(), 0);
@@ -246,7 +275,8 @@ const chartData = computed<UserChartItem[]>(() => {
       return {
         ...user,
         count,
-        heightPercent: maxCount > 0 ? Math.max((count / maxCount) * 100, 8) : 0,
+        heightPx: maxCount > 0 ? Math.max((count / maxCount) * maxBarHeight, 12) : 0,
+        lastMatchedAt: lastMatchedMap.get(key) ?? '',
       };
     })
     .sort((left, right) => right.count - left.count || left.id - right.id);
@@ -276,6 +306,26 @@ const chartWrapperStyle = computed(() => {
   };
 });
 
+const activeBarKey = computed(() => hoveredBarKey.value || selectedBarKey.value);
+
+const activeBarDetail = computed(() =>
+  chartData.value.find((item) => item.key === activeBarKey.value) ?? null,
+);
+
+const setHoveredBar = (key: string) => {
+  hoveredBarKey.value = key;
+};
+
+const clearHoveredBar = (key: string) => {
+  if (hoveredBarKey.value === key) {
+    hoveredBarKey.value = '';
+  }
+};
+
+const toggleSelectedBar = (key: string) => {
+  selectedBarKey.value = selectedBarKey.value === key ? '' : key;
+};
+
 const loadStats = async (view: 'today' | 'all') => {
   loading.value = true;
   errorMessage.value = '';
@@ -285,10 +335,14 @@ const loadStats = async (view: 'today' | 'all') => {
     const response = await axios.get<MatchingStatsResponse>(endpointMap[view]);
     stats.total = response.data.data?.total ?? 0;
     stats.records = response.data.data?.records ?? [];
+    hoveredBarKey.value = '';
+    selectedBarKey.value = '';
   } catch (error) {
     console.error('获取匹配统计失败', error);
     stats.total = 0;
     stats.records = [];
+    hoveredBarKey.value = '';
+    selectedBarKey.value = '';
     errorMessage.value = '获取匹配统计失败，请稍后重试。';
   } finally {
     loading.value = false;
@@ -449,6 +503,17 @@ onMounted(() => {
   min-height: 100%;
 }
 
+.bar-track {
+  display: flex;
+  flex: 1;
+  width: 100%;
+  min-height: 280px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: end;
+  gap: 8px;
+}
+
 .bar-value {
   font-size: 13px;
   color: #409eff;
@@ -457,11 +522,22 @@ onMounted(() => {
 
 .bar {
   width: 100%;
-  min-height: 8px;
+  min-height: 12px;
+  border: none;
   border-radius: 10px 10px 0 0;
   background: linear-gradient(180deg, #79bbff 0%, #409eff 100%);
   box-shadow: 0 8px 16px rgb(64 158 255 / 18%);
-  transition: height 0.2s ease;
+  cursor: pointer;
+  transition: height 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+.bar:hover,
+.bar:focus-visible,
+.bar.is-active {
+  filter: saturate(1.1);
+  transform: translateY(-4px);
+  box-shadow: 0 14px 24px rgb(64 158 255 / 28%);
+  outline: none;
 }
 
 .bar-label {
@@ -471,6 +547,34 @@ onMounted(() => {
   line-height: 1.4;
   text-align: center;
   word-break: break-word;
+}
+
+.active-bar-detail {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+  padding: 16px 18px;
+  border: 1px solid #d9ecff;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgb(236 245 255 / 96%), rgb(248 250 255 / 96%));
+  color: #303133;
+}
+
+.detail-caption {
+  color: #909399;
+  font-size: 13px;
+}
+
+.detail-fade-enter-active,
+.detail-fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.detail-fade-enter-from,
+.detail-fade-leave-to {
+  opacity: 0;
+  transform: translateY(6px);
 }
 
 @media (max-width: 768px) {
