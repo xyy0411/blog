@@ -21,6 +21,7 @@ const base = {
   createArticle: '/api/article',
   articleList: '/api/article/all',
   matchingToday: '/api/matching/record/today',
+  matchingWeek: '/api/matching/record/week',
   matchingAll: '/api/matching/record/all',
 } as const;
 
