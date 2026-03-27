@@ -3,7 +3,7 @@
     <div class="page-header">
       <div>
         <h1>匹配统计</h1>
-        <p>点击按钮切换当日或累计统计，图表会按“用户名[QQ号]”展示成功匹配次数。</p>
+        <p>点击按钮切换当日、本周或累计统计，图表会按“用户名[QQ号]”展示成功匹配次数。</p>
       </div>
       <el-button plain @click="router.push('/')">返回首页</el-button>
     </div>
@@ -15,6 +15,12 @@
           @click="loadStats('today')"
         >
           显示当日的匹配统计
+        </el-button>
+        <el-button
+          :type="activeView === 'week' ? 'primary' : 'default'"
+          @click="loadStats('week')"
+        >
+          显示本周的匹配统计
         </el-button>
         <el-button
           :type="activeView === 'all' ? 'primary' : 'default'"
@@ -235,7 +241,7 @@ interface UserChartItem {
 const router = useRouter();
 const loading = ref(false);
 const errorMessage = ref('');
-const activeView = ref<'today' | 'all'>('today');
+const activeView = ref<'today' | 'week' | 'all'>('today');
 const hoveredBarKey = ref('');
 const selectedBarKey = ref('');
 const maxBarHeight = 240;
@@ -246,11 +252,16 @@ const stats = reactive({
 
 const endpointMap = {
   today: apiUrl(base.matchingToday),
+  week: apiUrl(base.matchingWeek),
   all: apiUrl(base.matchingAll),
 } as const;
 
 const currentLabel = computed(() =>
-  activeView.value === 'today' ? '当日匹配统计' : '累计匹配统计',
+  activeView.value === 'today'
+    ? '当日匹配统计'
+    : activeView.value === 'week'
+      ? '本周匹配统计'
+      : '累计匹配统计',
 );
 
 const chartData = computed<UserChartItem[]>(() => {
@@ -347,7 +358,7 @@ const toggleSelectedBar = (key: string) => {
   selectedBarKey.value = selectedBarKey.value === key ? '' : key;
 };
 
-const loadStats = async (view: 'today' | 'all') => {
+const loadStats = async (view: 'today' | 'week' | 'all') => {
   loading.value = true;
   errorMessage.value = '';
   activeView.value = view;

@@ -50,6 +50,7 @@ func SetupRouter() *gin.Engine {
 
 		matched.GET("/record/all", matching.GetAllMatchingRecords)
 		matched.GET("/record/today", matching.GetTodayMatchingRecords)
+		matched.GET("/record/week", matching.GetThisWeekMatchingRecords)
 
 		matched.GET("/status/:user_id", matching.LookMatchingStatus)
 		matched.GET("/:user_id", matching.HandleMatching)
