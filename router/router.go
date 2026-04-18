@@ -32,13 +32,14 @@ func SetupRouter() *gin.Engine {
 	matched := api.Group("/matching")
 	{
 		matched.POST("/profile", matching.CreateMatchingProfile)
+		matched.PUT("/profile/:user_id", matching.UpdateProfileName)
 		matched.GET("/profile/:user_id", matching.GetMatchingProfile)
 		matched.GET("/profile/:user_id/software", matching.GetMatchingSoftwareList)
 		matched.GET("/profile/:user_id/block-user", matching.GetMatchingBlockUserList)
 		matched.GET("/profile/:user_id/expire", matching.GetMatchingExpire)
 		matched.PATCH("/profile/:user_id/expire", matching.UpdateMatchingExpire)
 		matched.POST("/profile/:user_id/software", matching.AddMatchingSoftware)
-		matched.DELETE("/profile/:user_id/software/:software_name", matching.RemoveMatchingSoftware)
+		matched.DELETE("/profile/:user_id/software", matching.RemoveMatchingSoftware)
 		matched.POST("/profile/:user_id/block-user", matching.AddMatchingBlockUser)
 		matched.DELETE("/profile/:user_id/block-user/:target_user_id", matching.RemoveMatchingBlockUser)
 

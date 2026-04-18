@@ -91,6 +91,25 @@ func ensureDefaultMatchingProfile(userID int64) (models.Matching, error) {
 	return user, nil
 }
 
+func UpdateProfileName(ctx *gin.Context) {
+	userID, ok := parseUserIDParam(ctx)
+	if !ok {
+		return
+	}
+	var input struct {
+		UserName string `json:"user_name"`
+	}
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		resp.Error(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := getRepo().UpdateName(userID, input.UserName); err != nil {
+		resp.Error(ctx, http.StatusInternalServerError, "更新用户名失败")
+		return
+	}
+	resp.OK(ctx, "更新用户名成功！", nil)
+}
+
 func CreateMatchingProfile(ctx *gin.Context) {
 	var input struct {
 		UserID          int64                   `json:"user_id"`
@@ -105,17 +124,24 @@ func CreateMatchingProfile(ctx *gin.Context) {
 		return
 	}
 
-	if input.UserID == 0 || strings.TrimSpace(input.UserName) == "" {
-		resp.Error(ctx, http.StatusBadRequest, "user_id 和 user_name 不能为空")
+	if input.UserID == 0 {
+		resp.Error(ctx, http.StatusBadRequest, "user_id 不能为空")
 		return
 	}
 
+	if strings.TrimSpace(input.UserName) == "" {
+		input.UserName = strconv.FormatInt(input.UserID, 10)
+	}
+
 	repo := getRepo()
-	if _, err := repo.GetByUserID(input.UserID); err == nil {
-		resp.Error(ctx, http.StatusConflict, "匹配资料已存在")
-		return
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+	info, err := repo.GetByUserID(input.UserID)
+	if !errors.Is(err, gorm.ErrRecordNotFound) && err != nil {
 		resp.Error(ctx, http.StatusInternalServerError, "查询匹配资料失败")
+		return
+	}
+
+	if info.UserName == input.UserName {
+		resp.OK(ctx, "用户信息已是最新无需更新", nil)
 		return
 	}
 
@@ -139,7 +165,7 @@ func CreateMatchingProfile(ctx *gin.Context) {
 	}
 
 	if err := repo.CreateMatchingWithChildren(&match); err != nil {
-		resp.Error(ctx, http.StatusInternalServerError, "创建匹配资料失败")
+		resp.Error(ctx, http.StatusInternalServerError, "创建用户失败")
 		return
 	}
 
@@ -317,9 +343,11 @@ func RemoveMatchingSoftware(ctx *gin.Context) {
 		return
 	}
 
-	softwareName := strings.TrimSpace(ctx.Param("software_name"))
-	if softwareName == "" {
-		resp.Error(ctx, http.StatusBadRequest, "software_name 不能为空")
+	var input struct {
+		SoftwareName string `json:"software_name"`
+	}
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		resp.Error(ctx, http.StatusBadRequest, errors.Join(errors.New("software字段错误"), err))
 		return
 	}
 
@@ -327,14 +355,14 @@ func RemoveMatchingSoftware(ctx *gin.Context) {
 	match, err := repo.GetByUserID(userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			resp.Error(ctx, http.StatusNotFound, "未找到匹配资料")
+			resp.Error(ctx, http.StatusNotFound, "未找到匹配软件")
 			return
 		}
 		resp.Error(ctx, http.StatusInternalServerError, "查询匹配资料失败")
 		return
 	}
 
-	if err := repo.RemoveOnlineSoftware(match.ID, softwareName); err != nil {
+	if err := repo.RemoveOnlineSoftware(match.ID, input.SoftwareName); err != nil {
 		resp.Error(ctx, http.StatusInternalServerError, "移除软件失败")
 		return
 	}

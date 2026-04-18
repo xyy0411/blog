@@ -13,6 +13,14 @@ func NewRepo(db *gorm.DB) *Repo {
 	return &Repo{db: db}
 }
 
+func (r *Repo) UpdateName(userID int64, name string) error {
+	return r.db.
+		Model(&models.Matching{}).
+		Where("user_id = ?", userID).
+		Update("name", name).
+		Error
+}
+
 func (r *Repo) CreateMatchingWithChildren(m *models.Matching) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(m).Error; err != nil {
