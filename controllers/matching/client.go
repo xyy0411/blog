@@ -44,7 +44,7 @@ func (c *Client) checkLimitTimer(id int64) {
 			// 创建或重置定时器
 			timer = time.NewTimer(time.Duration(t) * time.Second)
 		case <-timer.C:
-			matchedList.RemoveUserFromQueue(id)
+			matchedList.ExitUserFromQueue(id)
 			event := models.MatchEvent{
 				Type:    "error",
 				SelfID:  id,

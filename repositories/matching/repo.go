@@ -1,12 +1,19 @@
 package matching
 
 import (
+	"time"
+
 	"github.com/xyy0411/blog/models"
 	"gorm.io/gorm"
 )
 
 type Repo struct {
 	db *gorm.DB
+}
+
+type MatchingApplicationListFilter struct {
+	StartAt *time.Time
+	EndAt   *time.Time
 }
 
 func NewRepo(db *gorm.DB) *Repo {
@@ -93,4 +100,35 @@ func (r *Repo) AddBlockUser(matchingID, userID int64) error {
 		MatchingID: matchingID,
 		UserID:     userID,
 	}).Error
+}
+
+func (r *Repo) CreateMatchingApplication(app *models.MatchingApplication) error {
+	return r.db.Create(app).Error
+}
+
+func (r *Repo) MatchingApplicationStats(filter MatchingApplicationListFilter) (int64, int64, float64, int64, error) {
+	var total int64
+	query := r.db.Model(&models.MatchingApplication{})
+	if filter.StartAt != nil {
+		query = query.Where("created_at >= ?", *filter.StartAt)
+	}
+	if filter.EndAt != nil {
+		query = query.Where("created_at < ?", *filter.EndAt)
+	}
+	if err := query.Count(&total).Error; err != nil {
+		return 0, 0, 0, 0, err
+	}
+	var matched int64
+	if err := query.Where("is_matched = ?", true).Count(&matched).Error; err != nil {
+		return 0, 0, 0, 0, err
+	}
+	var durationSum int64
+	if err := query.Select("COALESCE(SUM(duration), 0)").Scan(&durationSum).Error; err != nil {
+		return 0, 0, 0, 0, err
+	}
+	var successRate float64
+	if total > 0 {
+		successRate = float64(matched) / float64(total)
+	}
+	return total, matched, successRate, durationSum, nil
 }

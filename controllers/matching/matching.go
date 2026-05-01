@@ -55,7 +55,7 @@ func syncQueueUser(userID int64) {
 	user, err := getRepo().GetByUserID(userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			matchedList.RemoveUserFromQueue(userID)
+			matchedList.ExitUserFromQueue(userID)
 			return
 		}
 		global.Logger.Errorf("同步匹配队列用户失败，user_id=%d，err=%v", userID, err)
@@ -472,7 +472,7 @@ func QuitMatching(ctx *gin.Context) {
 		resp.Error(ctx, http.StatusNotFound, "用户不在匹配队列中")
 		return
 	}
-	matchedList.RemoveUserFromQueue(userID)
+	matchedList.ExitUserFromQueue(userID)
 
 	lock.Lock()
 	client, ok := MatchHub.clients[userID]
