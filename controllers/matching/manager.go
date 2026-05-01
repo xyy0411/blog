@@ -15,12 +15,14 @@ const defaultMatchCooldownMinutes = 30
 
 type Manager struct {
 	matchedList syncx.Map[int64, *models.Matching]
+	queuedAt    syncx.Map[int64, time.Time]
 	idGen       *Snowflake
 }
 
 func NewMatchingManager() *Manager {
 	return &Manager{
 		matchedList: syncx.Map[int64, *models.Matching]{},
+		queuedAt:    syncx.Map[int64, time.Time]{},
 		idGen:       NewSnowflake(0),
 	}
 }
@@ -38,10 +40,20 @@ func (mm *Manager) Len() int {
 
 func (mm *Manager) AddUserToQueue(user *models.Matching) {
 	mm.matchedList.Store(user.UserID, user)
+	mm.queuedAt.Store(user.UserID, time.Now())
 }
 
 func (mm *Manager) RemoveUserFromQueue(userID int64) {
 	mm.matchedList.Delete(userID)
+	mm.queuedAt.Delete(userID)
+}
+
+func (mm *Manager) ExitUserFromQueue(userID int64) {
+	user, ok := mm.matchedList.Load(userID)
+	if ok && user != nil {
+		mm.saveMatchingApplication(*user, false, "")
+	}
+	mm.RemoveUserFromQueue(userID)
 }
 
 func (mm *Manager) GenerateMatchID() string {
@@ -90,6 +102,29 @@ func (mm *Manager) saveMatchingRecord(user, targetUser models.Matching, matchID 
 	}
 }
 
+func (mm *Manager) saveMatchingApplication(user models.Matching, isMatched bool, matchID string) {
+	startAt, ok := mm.queuedAt.Load(user.UserID)
+	if !ok || global.DB == nil {
+		return
+	}
+
+	duration := int(time.Since(startAt).Seconds())
+	if duration < 0 {
+		duration = 0
+	}
+
+	record := models.MatchingApplication{
+		UserID:    user.UserID,
+		UserName:  user.UserName,
+		IsMatched: isMatched,
+		Duration:  duration,
+		MatchID:   matchID,
+	}
+	if err := global.DB.Create(&record).Error; err != nil {
+		global.Logger.Errorf("保存匹配申请记录失败: %v", err)
+	}
+}
+
 func (mm *Manager) notifyAndRemoveUser(id int64, user models.Matching, matchID string) {
 	if MatchHub == nil {
 		global.Logger.Error("MatchHub 未初始化")
@@ -108,6 +143,7 @@ func (mm *Manager) notifyAndRemoveUser(id int64, user models.Matching, matchID s
 		global.Logger.Errorf("用户 %d 的客户端 send 通道未初始化", user.UserID)
 		return
 	}
+	mm.saveMatchingApplication(user, matchID != "", matchID)
 	event := utils.FormatMatchingInfo(id, user, matchID)
 	mm.RemoveUserFromQueue(user.UserID)
 	sendEvent(client, event)
