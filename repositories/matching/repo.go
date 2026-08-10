@@ -122,3 +122,8 @@ func (r *Repo) GetApplicationsByDateRange(startDate, endDate time.Time) ([]model
 	}
 	return apps, nil
 }
+
+// SaveMatchingApplication 保存匹配申请记录
+func (r *Repo) SaveMatchingApplication(app *models.MatchingApplication) error {
+	return r.db.Create(app).Error
+}

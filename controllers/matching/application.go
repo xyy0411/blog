@@ -18,16 +18,40 @@ import (
 const applicationDateLayout = "2006-01-02"
 
 // summarizeApplications 将 MatchingApplication 列表聚合成统计信息，
-// 包含总数、成功数、失败数以及原始记录列表
+// 包含总数、成功数、失败数、按退出原因分类统计以及原始记录列表
 func summarizeApplications(apps []models.MatchingApplication) map[string]any {
 	total := len(apps)
 	successCount := 0
 	failCount := 0
+
+	// 按 ExitReason 分类统计
+	exitReasonStats := map[string]int{
+		"success":        0, // ExitReasonSuccess
+		"user_initiated": 0, // ExitReasonUserInitiated
+		"timeout":        0, // ExitReasonTimeout
+		"error":          0, // ExitReasonError
+		"expired":        0, // ExitReasonExpired
+	}
+
 	for _, app := range apps {
 		if app.IsMatched {
 			successCount++
 		} else {
 			failCount++
+		}
+
+		// 统计各个 ExitReason
+		switch app.ExitReason {
+		case models.ExitReasonSuccess:
+			exitReasonStats["success"]++
+		case models.ExitReasonUserInitiated:
+			exitReasonStats["user_initiated"]++
+		case models.ExitReasonTimeout:
+			exitReasonStats["timeout"]++
+		case models.ExitReasonError:
+			exitReasonStats["error"]++
+		case models.ExitReasonExpired:
+			exitReasonStats["expired"]++
 		}
 	}
 
@@ -37,7 +61,14 @@ func summarizeApplications(apps []models.MatchingApplication) map[string]any {
 		"fail_count":    failCount,
 		"success_rate":  computeRate(successCount, total),
 		"fail_rate":     computeRate(failCount, total),
-		"records":       apps,
+		"exit_reason_stats": map[string]any{
+			"success":        map[string]any{"count": exitReasonStats["success"], "rate": computeRate(exitReasonStats["success"], total)},
+			"user_initiated": map[string]any{"count": exitReasonStats["user_initiated"], "rate": computeRate(exitReasonStats["user_initiated"], total)},
+			"timeout":        map[string]any{"count": exitReasonStats["timeout"], "rate": computeRate(exitReasonStats["timeout"], total)},
+			"error":          map[string]any{"count": exitReasonStats["error"], "rate": computeRate(exitReasonStats["error"], total)},
+			"expired":        map[string]any{"count": exitReasonStats["expired"], "rate": computeRate(exitReasonStats["expired"], total)},
+		},
+		"records": apps,
 	}
 }
 
@@ -161,12 +192,15 @@ func SeedMatchingApplications(ctx *gin.Context) {
 
 			var duration int
 			var matchID string
+			var exitReason models.ExitReason
 			if isMatched {
 				duration = 30 + rng.Intn(270) // 30~300 秒
 				matchID = fmt.Sprintf("M%d%d%d", dayBase.Unix(), user.id, rng.Intn(9000)+1000)
+				exitReason = models.ExitReasonSuccess
 				successCount++
 			} else {
 				duration = 0
+				exitReason = models.ExitReasonUserInitiated
 				failCount++
 			}
 
@@ -177,11 +211,12 @@ func SeedMatchingApplications(ctx *gin.Context) {
 			createdAt := dayBase.Add(offset)
 
 			app := models.MatchingApplication{
-				UserID:    user.id,
-				UserName:  user.name,
-				IsMatched: isMatched,
-				Duration:  duration,
-				MatchID:   matchID,
+				UserID:     user.id,
+				UserName:   user.name,
+				IsMatched:  isMatched,
+				Duration:   duration,
+				MatchID:    matchID,
+				ExitReason: exitReason,
 			}
 			app.CreatedAt = createdAt
 			app.UpdatedAt = createdAt

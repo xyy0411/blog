@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -482,6 +483,19 @@ func QuitMatching(ctx *gin.Context) {
 		return
 	}
 
+	// 获取用户信息用于保存记录
+	user, err := getRepo().GetByUserID(userID)
+	if err != nil {
+		global.Logger.Errorf("获取用户信息失败: %v", err)
+		user = models.Matching{UserID: userID, UserName: ""}
+	}
+
+	// 计算匹配持续时间（秒）
+	duration := int(time.Now().Sub(client.connectedAt).Seconds())
+
+	// 保存匹配申请记录（用户主动退出）
+	matchedList.saveMatchingApplication(userID, user.UserName, false, duration, "", models.ExitReasonUserInitiated)
+
 	sendEvent(client, models.MatchEvent{
 		Type:    "cancelled",
 		SelfID:  userID,
@@ -506,8 +520,9 @@ func HandleMatching(ctx *gin.Context) {
 	global.Logger.Infof("已与用户:%d 建立 WebSocket 连接", userID)
 
 	client := &userClient{
-		id:     userID,
-		client: NewClient(MatchHub, conn),
+		id:       userID,
+		client:   NewClient(MatchHub, conn),
+		userName: "",
 	}
 
 	// 启动写消息的协程
@@ -525,14 +540,16 @@ func HandleMatching(ctx *gin.Context) {
 			SelfID:  userID,
 			PeerID:  0,
 			Message: err.Error(),
-			Code:    500,
+			Code:    http.StatusInternalServerError,
 		}
 		sendEvent(client.client, event)
 		return
 	}
 
+	client.userName = user.UserName
+
 	if userID != user.UserID {
-		sendEvent(client.client, models.MatchEvent{Type: "error", SelfID: userID, Message: "用户ID不匹配", Code: 400})
+		sendEvent(client.client, models.MatchEvent{Type: "error", SelfID: userID, Message: "用户ID不匹配", Code: http.StatusBadRequest})
 		return
 	}
 
@@ -542,7 +559,7 @@ func HandleMatching(ctx *gin.Context) {
 			SelfID:  userID,
 			PeerID:  0,
 			Message: "你已在匹配队列中，请勿重复匹配",
-			Code:    409,
+			Code:    http.StatusConflict,
 		}
 		sendEvent(client.client, event)
 		return

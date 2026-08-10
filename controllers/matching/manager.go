@@ -90,6 +90,22 @@ func (mm *Manager) saveMatchingRecord(user, targetUser models.Matching, matchID 
 	}
 }
 
+// saveMatchingApplication 保存匹配申请记录到数据库
+func (mm *Manager) saveMatchingApplication(userID int64, userName string, isMatched bool, duration int, matchID string, exitReason models.ExitReason) {
+	app := models.MatchingApplication{
+		UserID:     userID,
+		UserName:   userName,
+		IsMatched:  isMatched,
+		Duration:   duration,
+		MatchID:    matchID,
+		ExitReason: exitReason,
+	}
+
+	if err := global.DB.Create(&app).Error; err != nil {
+		global.Logger.Errorf("保存匹配申请记录失败: userID=%d, err=%v", userID, err)
+	}
+}
+
 func (mm *Manager) notifyAndRemoveUser(id int64, user models.Matching, matchID string) {
 	if MatchHub == nil {
 		global.Logger.Error("MatchHub 未初始化")
@@ -108,6 +124,13 @@ func (mm *Manager) notifyAndRemoveUser(id int64, user models.Matching, matchID s
 		global.Logger.Errorf("用户 %d 的客户端 send 通道未初始化", user.UserID)
 		return
 	}
+
+	// 计算匹配持续时间（秒）
+	duration := int(time.Now().Sub(client.connectedAt).Seconds())
+
+	// 保存匹配申请记录（匹配成功）
+	mm.saveMatchingApplication(id, user.UserName, true, duration, matchID, models.ExitReasonSuccess)
+
 	event := utils.FormatMatchingInfo(id, user, matchID)
 	mm.RemoveUserFromQueue(user.UserID)
 	sendEvent(client, event)

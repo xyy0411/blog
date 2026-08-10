@@ -167,6 +167,96 @@
               </div>
             </el-card>
 
+            <el-card shadow="never" class="chart-card">
+              <template #header>
+                <div class="section-header">
+                  <div>
+                    <h2>退出原因统计</h2>
+                    <p>展示用户从匹配队列中退出的各种原因占比，包括成功匹配、主动退出、超时等。</p>
+                  </div>
+                </div>
+              </template>
+
+              <div class="exit-reason-stats">
+                <div class="stats-grid">
+                  <!-- 匹配成功 -->
+                  <div class="stat-item">
+                    <div class="stat-header">
+                      <span class="stat-label">匹配成功</span>
+                      <span class="stat-badge success">{{ stats.exitReasonStats.success.count }}</span>
+                    </div>
+                    <div class="progress-bar">
+                      <div
+                        class="progress-fill success"
+                        :style="{ width: `${stats.exitReasonStats.success.rate}%` }"
+                      />
+                    </div>
+                    <div class="stat-footer">{{ formatRate(stats.exitReasonStats.success.rate) }}</div>
+                  </div>
+
+                  <!-- 用户主动退出 -->
+                  <div class="stat-item">
+                    <div class="stat-header">
+                      <span class="stat-label">用户主动退出</span>
+                      <span class="stat-badge info">{{ stats.exitReasonStats.user_initiated.count }}</span>
+                    </div>
+                    <div class="progress-bar">
+                      <div
+                        class="progress-fill info"
+                        :style="{ width: `${stats.exitReasonStats.user_initiated.rate}%` }"
+                      />
+                    </div>
+                    <div class="stat-footer">{{ formatRate(stats.exitReasonStats.user_initiated.rate) }}</div>
+                  </div>
+
+                  <!-- 匹配超时 -->
+                  <div class="stat-item">
+                    <div class="stat-header">
+                      <span class="stat-label">匹配超时</span>
+                      <span class="stat-badge warning">{{ stats.exitReasonStats.timeout.count }}</span>
+                    </div>
+                    <div class="progress-bar">
+                      <div
+                        class="progress-fill warning"
+                        :style="{ width: `${stats.exitReasonStats.timeout.rate}%` }"
+                      />
+                    </div>
+                    <div class="stat-footer">{{ formatRate(stats.exitReasonStats.timeout.rate) }}</div>
+                  </div>
+
+                  <!-- 错误/断连 -->
+                  <div class="stat-item">
+                    <div class="stat-header">
+                      <span class="stat-label">网络错误</span>
+                      <span class="stat-badge danger">{{ stats.exitReasonStats.error.count }}</span>
+                    </div>
+                    <div class="progress-bar">
+                      <div
+                        class="progress-fill danger"
+                        :style="{ width: `${stats.exitReasonStats.error.rate}%` }"
+                      />
+                    </div>
+                    <div class="stat-footer">{{ formatRate(stats.exitReasonStats.error.rate) }}</div>
+                  </div>
+
+                  <!-- 已过期 -->
+                  <div class="stat-item">
+                    <div class="stat-header">
+                      <span class="stat-label">已过期</span>
+                      <span class="stat-badge secondary">{{ stats.exitReasonStats.expired.count }}</span>
+                    </div>
+                    <div class="progress-bar">
+                      <div
+                        class="progress-fill secondary"
+                        :style="{ width: `${stats.exitReasonStats.expired.rate}%` }"
+                      />
+                    </div>
+                    <div class="stat-footer">{{ formatRate(stats.exitReasonStats.expired.rate) }}</div>
+                  </div>
+                </div>
+              </div>
+            </el-card>
+
             <el-card shadow="never" class="detail-card collapsible-card">
               <template #header>
                 <div
@@ -177,18 +267,27 @@
                     <h2>原始数据</h2>
                     <p>完整保留所有匹配申请记录，便于核对图表数据。</p>
                   </div>
-                  <el-icon
-                    class="collapsible-arrow"
-                    :class="{ 'is-open': !rawDataCollapsed }"
-                  >
-                    <ArrowDown />
-                  </el-icon>
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <el-button
+                      v-if="!rawDataCollapsed"
+                      size="small"
+                      @click.stop="showAllData"
+                    >
+                      显示全部数据
+                    </el-button>
+                    <el-icon
+                      class="collapsible-arrow"
+                      :class="{ 'is-open': !rawDataCollapsed }"
+                    >
+                      <ArrowDown />
+                    </el-icon>
+                  </div>
                 </div>
               </template>
 
               <transition name="card-collapse">
                 <div v-show="!rawDataCollapsed">
-                  <el-table :data="stats.records" stripe>
+                  <el-table :data="displayTableData" stripe>
                     <el-table-column prop="id" label="ID" min-width="80" />
                     <el-table-column label="用户" min-width="200">
                       <template #default="scope">
@@ -213,6 +312,21 @@
                       </template>
                     </el-table-column>
                   </el-table>
+                  <div v-if="tablePageSize < stats.records.length" class="table-footer">
+                    <span class="info-text">
+                      显示 {{ displayTableData.length }} / {{ stats.records.length }} 条记录
+                    </span>
+                    <el-button
+                      type="primary"
+                      text
+                      @click="showAllData"
+                    >
+                      加载全部
+                    </el-button>
+                  </div>
+                  <div v-else-if="stats.records.length > 0" class="table-footer">
+                    <span class="info-text">共 {{ stats.records.length }} 条记录</span>
+                  </div>
                 </div>
               </transition>
             </el-card>
@@ -242,6 +356,11 @@ interface MatchingApplication {
   created_at: string;
 }
 
+interface ExitReasonItem {
+  count: number;
+  rate: number;
+}
+
 interface ApplicationStatsResponse {
   data?: {
     total?: number;
@@ -249,6 +368,13 @@ interface ApplicationStatsResponse {
     fail_count?: number;
     success_rate?: number;
     fail_rate?: number;
+    exit_reason_stats?: {
+      success?: ExitReasonItem;
+      user_initiated?: ExitReasonItem;
+      timeout?: ExitReasonItem;
+      error?: ExitReasonItem;
+      expired?: ExitReasonItem;
+    };
     records?: MatchingApplication[];
   };
   error?: string;
@@ -277,6 +403,7 @@ const dateRange = ref<[string, string] | null>(null);
 const hoveredSliceKey = ref('');
 const rawDataCollapsed = ref(true);
 const pieAnimationKey = ref(0);
+const tablePageSize = ref(10);
 
 const stats = reactive({
   total: 0,
@@ -284,6 +411,13 @@ const stats = reactive({
   failCount: 0,
   successRate: 0,
   failRate: 0,
+  exitReasonStats: {
+    success: { count: 0, rate: 0 },
+    user_initiated: { count: 0, rate: 0 },
+    timeout: { count: 0, rate: 0 },
+    error: { count: 0, rate: 0 },
+    expired: { count: 0, rate: 0 },
+  },
   records: [] as MatchingApplication[],
 });
 
@@ -344,6 +478,12 @@ const pieSlices = computed<PieSlice[]>(() => {
 const hoveredSlice = computed(() =>
   pieSlices.value.find((slice) => slice.key === hoveredSliceKey.value) ?? null,
 );
+
+const displayTableData = computed(() => {
+  const start = 0;
+  const end = tablePageSize.value;
+  return stats.records.slice(start, end);
+});
 
 interface SliceInput {
   key: string;
@@ -415,7 +555,15 @@ function applyResponse(payload: ApplicationStatsResponse) {
   stats.failCount = data.fail_count ?? 0;
   stats.successRate = data.success_rate ?? 0;
   stats.failRate = data.fail_rate ?? 0;
+  stats.exitReasonStats = data.exit_reason_stats ?? {
+    success: { count: 0, rate: 0 },
+    user_initiated: { count: 0, rate: 0 },
+    timeout: { count: 0, rate: 0 },
+    error: { count: 0, rate: 0 },
+    expired: { count: 0, rate: 0 },
+  };
   stats.records = data.records ?? [];
+  tablePageSize.value = 10;
   pieAnimationKey.value++;
 }
 
@@ -425,7 +573,15 @@ function resetStats() {
   stats.failCount = 0;
   stats.successRate = 0;
   stats.failRate = 0;
+  stats.exitReasonStats = {
+    success: { count: 0, rate: 0 },
+    user_initiated: { count: 0, rate: 0 },
+    timeout: { count: 0, rate: 0 },
+    error: { count: 0, rate: 0 },
+    expired: { count: 0, rate: 0 },
+  };
   stats.records = [];
+  tablePageSize.value = 10;
 }
 
 async function loadTodayStats() {
@@ -515,6 +671,10 @@ function formatTime(value: string) {
     return '-';
   }
   return new Date(value).toLocaleString('zh-CN', { hour12: false });
+}
+
+function showAllData() {
+  tablePageSize.value = stats.records.length;
 }
 
 onMounted(() => {
@@ -1018,6 +1178,20 @@ onMounted(() => {
   transition: background-color 0.2s ease;
 }
 
+.table-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  margin-top: 12px;
+}
+
+.info-text {
+  color: #8b8b9e;
+  font-size: 13px;
+}
+
 @media (max-width: 768px) {
   .stats-page {
     padding: 16px;
@@ -1103,6 +1277,16 @@ onMounted(() => {
   user-select: none;
 }
 
+.collapsible-header :deep(.el-button) {
+  color: #60a5fa;
+  border-color: rgba(96, 165, 250, 0.3);
+}
+
+.collapsible-header :deep(.el-button:hover) {
+  background: rgba(96, 165, 250, 0.1);
+  border-color: rgba(96, 165, 250, 0.5);
+}
+
 .collapsible-arrow {
   font-size: 16px;
   color: #8b8b9e;
@@ -1134,5 +1318,118 @@ onMounted(() => {
 .card-collapse-leave-from {
   max-height: 2500px;
   opacity: 1;
+}
+
+/* ============== 退出原因统计卡片 ============== */
+.exit-reason-stats {
+  padding: 8px 0;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+}
+
+.stat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.stat-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e4e4e7;
+}
+
+.stat-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 30px;
+  text-align: center;
+  color: #fff;
+}
+
+.stat-badge.success {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+}
+
+.stat-badge.info {
+  background: rgba(96, 165, 250, 0.2);
+  color: #60a5fa;
+}
+
+.stat-badge.warning {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
+}
+
+.stat-badge.danger {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+.stat-badge.secondary {
+  background: rgba(139, 139, 158, 0.2);
+  color: #a0a0b0;
+}
+
+.progress-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.progress-fill.success {
+  background: linear-gradient(90deg, #10b981, #34d399);
+}
+
+.progress-fill.info {
+  background: linear-gradient(90deg, #60a5fa, #93c5fd);
+}
+
+.progress-fill.warning {
+  background: linear-gradient(90deg, #fbbf24, #fcd34d);
+}
+
+.progress-fill.danger {
+  background: linear-gradient(90deg, #ef4444, #f87171);
+}
+
+.progress-fill.secondary {
+  background: linear-gradient(90deg, #8b8b9e, #a0a0b0);
+}
+
+.stat-footer {
+  font-size: 12px;
+  color: #8b8b9e;
+  text-align: right;
+}
+
+@media (max-width: 768px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

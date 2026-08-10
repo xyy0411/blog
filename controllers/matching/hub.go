@@ -1,8 +1,11 @@
 package matching
 
 import (
+	"time"
+
 	"github.com/xyy0411/blog/global"
 	"github.com/xyy0411/blog/models"
+	matchingrepo "github.com/xyy0411/blog/repositories/matching"
 )
 
 var (
@@ -24,8 +27,9 @@ type Hub struct {
 }
 
 type userClient struct {
-	id     int64
-	client *Client
+	id       int64
+	client   *Client
+	userName string // 用户名
 }
 
 func NewMatchingHub() *Hub {
@@ -55,7 +59,26 @@ func (h *Hub) Run() {
 		case info := <-h.match:
 			matchedList.MatchUsers(info)
 		case id := <-h.unregister:
-			if _, ok := h.clients[id]; ok {
+			client, ok := h.clients[id]
+			if ok {
+				// 检查用户是否还在匹配队列中（异常断连的情况）
+				if _, inQueue := matchedList.matchedList.Load(id); inQueue {
+					matchedList.RemoveUserFromQueue(id)
+
+					// 获取用户信息用于保存记录
+					repo := matchingrepo.NewRepo(global.DB)
+					user, err := repo.GetByUserID(id)
+					if err != nil {
+						global.Logger.Errorf("获取用户信息失败: %v", err)
+						user = models.Matching{UserID: id, UserName: ""}
+					}
+
+					// 计算匹配持续时间（秒）
+					duration := int(time.Now().Sub(client.connectedAt).Seconds())
+
+					// 保存匹配申请记录（网络错误/异常断连）
+					matchedList.saveMatchingApplication(id, user.UserName, false, duration, "", models.ExitReasonError)
+				}
 				delete(h.clients, id)
 			}
 		case id := <-h.quit:

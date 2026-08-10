@@ -6,6 +6,35 @@ import (
 	"gorm.io/gorm"
 )
 
+// ExitReason 用户退出匹配队列的原因枚举
+type ExitReason int
+
+const (
+	ExitReasonSuccess       ExitReason = iota // 0: 匹配成功
+	ExitReasonUserInitiated                   // 1: 用户主动退出
+	ExitReasonTimeout                         // 2: 匹配超时
+	ExitReasonError                           // 3: 匹配过程中出错
+	ExitReasonExpired                         // 4: 匹配信息过期
+)
+
+// String 返回 ExitReason 的字符串表示
+func (e ExitReason) String() string {
+	switch e {
+	case ExitReasonSuccess:
+		return "success"
+	case ExitReasonUserInitiated:
+		return "user_initiated"
+	case ExitReasonTimeout:
+		return "timeout"
+	case ExitReasonError:
+		return "error"
+	case ExitReasonExpired:
+		return "expired"
+	default:
+		return "unknown"
+	}
+}
+
 // MatchingRecord 匹配记录表，用于统计用户之间的匹配历史
 type MatchingRecord struct {
 	ID        uint           `gorm:"primaryKey" json:"id"`
@@ -28,11 +57,12 @@ func (MatchingRecord) TableName() string {
 // MatchingApplication 匹配申请表，记录用户申请匹配的信息
 type MatchingApplication struct {
 	gorm.Model
-	UserID    int64  `gorm:"index" json:"user_id"`                    // 用户ID
-	UserName  string `gorm:"size:100" json:"user_name"`               // 用户名
-	IsMatched bool   `gorm:"default:false;index" json:"is_matched"`   // 是否匹配成功
-	Duration  int    `gorm:"default:0" json:"duration"`               // 匹配持续时间（秒）
-	MatchID   string `gorm:"size:50;index" json:"match_id,omitempty"` // 匹配ID
+	UserID     int64      `gorm:"index" json:"user_id"`                    // 用户ID
+	UserName   string     `gorm:"size:100" json:"user_name"`               // 用户名
+	IsMatched  bool       `gorm:"default:false;index" json:"is_matched"`   // 是否匹配成功
+	Duration   int        `gorm:"default:0" json:"duration"`               // 匹配持续时间（秒）
+	MatchID    string     `gorm:"size:50;index" json:"match_id,omitempty"` // 匹配ID
+	ExitReason ExitReason `gorm:"type:int;default:0" json:"exit_reason"`   // 用户退出匹配队列的原因
 }
 
 // TableName 指定表名
