@@ -52,6 +52,15 @@ func SetupRouter() *gin.Engine {
 		matched.GET("/record/all", matching.GetAllMatchingRecords)
 		matched.GET("/record/today", matching.GetTodayMatchingRecords)
 		matched.GET("/record/week", matching.GetThisWeekMatchingRecords)
+		// 指定日期范围查询：接收 start_date 与 end_date 参数
+		matched.GET("/record/range", matching.GetMatchingRecordsByDateRange)
+
+		// 当日数据查询：无需日期参数，默认查询系统当前日期
+		matched.GET("/application/today", matching.GetTodayMatchingApplications)
+		// 指定日期范围查询：接收 start_date 与 end_date 参数
+		matched.GET("/application/range", matching.GetMatchingApplicationsByDateRange)
+		// 演示用：生成 MatchingApplication 测试数据（仅本地调试使用）
+		matched.GET("/application/seed", matching.SeedMatchingApplications)
 
 		matched.GET("/status/:user_id", matching.LookMatchingStatus)
 		matched.GET("/:user_id", matching.HandleMatching)

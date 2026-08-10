@@ -4,9 +4,21 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
+      path: '/login',
+      name: 'Login',
+      component: () => import('@/views/login.vue'),
+      meta: { hideLayout: true },
+    },
+    {
+      path: '/register',
+      name: 'Register',
+      component: () => import('@/views/register.vue'),
+      meta: { hideLayout: true },
+    },
+    {
       path: '/',
-      name: 'Home',
-      component: () => import('@/views/home.vue'),
+      name: 'HomeRedirect',
+      redirect: '/matching-application',
     },
     {
       path: '/about',
@@ -14,19 +26,14 @@ const router = createRouter({
       component: () => import('@/views/about.vue'),
     },
     {
-      path: '/login',
-      name: 'Login',
-      component: () => import('@/views/login.vue'),
-    },
-    {
-      path: '/register',
-      name: 'Register',
-      component: () => import('@/views/register.vue'),
-    },
-    {
       path: '/matching-stats',
       name: 'MatchingStats',
       component: () => import('@/views/matching-stats.vue'),
+    },
+    {
+      path: '/matching-application',
+      name: 'MatchingApplication',
+      component: () => import('@/views/matching-application.vue'),
     },
     {
       path: '/:pathMatch(.*)*',

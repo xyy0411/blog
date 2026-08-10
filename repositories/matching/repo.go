@@ -1,6 +1,9 @@
 package matching
 
 import (
+	"errors"
+	"time"
+
 	"github.com/xyy0411/blog/models"
 	"gorm.io/gorm"
 )
@@ -93,4 +96,29 @@ func (r *Repo) AddBlockUser(matchingID, userID int64) error {
 		MatchingID: matchingID,
 		UserID:     userID,
 	}).Error
+}
+
+// ErrInvalidDateRange 表示传入的日期范围无效（开始时间为空或晚于截至时间）
+var ErrInvalidDateRange = errors.New("invalid date range: start must not be after end")
+
+// GetApplicationsByDateRange 查询指定日期范围内的 MatchingApplication 记录。
+// startDate 为闭区间起点，endDate 为开区间终点，均按本地时间解释。
+// 当 startDate 晚于 endDate 时返回 ErrInvalidDateRange 以触发上层参数校验。
+func (r *Repo) GetApplicationsByDateRange(startDate, endDate time.Time) ([]models.MatchingApplication, error) {
+	if startDate.IsZero() || endDate.IsZero() {
+		return nil, ErrInvalidDateRange
+	}
+	if startDate.After(endDate) {
+		return nil, ErrInvalidDateRange
+	}
+
+	var apps []models.MatchingApplication
+	err := r.db.
+		Where("created_at >= ? AND created_at < ?", startDate, endDate).
+		Order("created_at DESC").
+		Find(&apps).Error
+	if err != nil {
+		return nil, err
+	}
+	return apps, nil
 }

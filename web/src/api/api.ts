@@ -23,6 +23,9 @@ const base = {
   matchingToday: '/api/matching/record/today',
   matchingWeek: '/api/matching/record/week',
   matchingAll: '/api/matching/record/all',
+  matchingRecordRange: '/api/matching/record/range',
+  matchingApplicationToday: '/api/matching/application/today',
+  matchingApplicationRange: '/api/matching/application/range',
 } as const;
 
 export default base;

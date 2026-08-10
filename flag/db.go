@@ -20,6 +20,7 @@ func flagDB() {
 		&models.OnlineSoftware{},
 		&models.BlackIP{},
 		&models.MatchingRecord{},
+		&models.MatchingApplication{},
 	)
 	if err != nil {
 		global.Logger.Errorf("数据库迁移失败: %v", err)

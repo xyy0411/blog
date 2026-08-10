@@ -1,8 +1,15 @@
+const router = useRouter();
+import { useRouter } from 'vue-router';
 <template>
   <div class="home-page">
     <div class="hero">
       <h1>欢迎来到我的博客</h1>
       <p>搜索文章，或者进入匹配统计页面查看当日与累计数据。</p>
+      <div class="hero-actions">
+        <el-button type="primary" @click="router.push('/matching-stats')">
+          查看匹配统计
+        </el-button>
+      </div>
       <div class="hero-actions">
         <el-button type="primary" @click="router.push('/matching-stats')">
           查看匹配统计
@@ -96,6 +103,10 @@ onMounted(() => {
   color: #606266;
 }
 
+.hero-actions {
+  display: flex;
+  justify-content: center;
+}
 .hero-actions {
   display: flex;
   justify-content: center;
