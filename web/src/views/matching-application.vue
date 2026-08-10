@@ -11,18 +11,30 @@
     </div>
 
     <el-card shadow="never" class="stats-panel">
-      <div class="button-group">
+        <div class="button-group">
         <el-button
           :type="activeView === 'today' ? 'primary' : 'default'"
           @click="switchView('today')"
         >
-          查询当日数据
+          当日
+        </el-button>
+        <el-button
+          :type="activeView === 'week' ? 'primary' : 'default'"
+          @click="switchView('week')"
+        >
+          本周
+        </el-button>
+        <el-button
+          :type="activeView === 'all' ? 'primary' : 'default'"
+          @click="switchView('all')"
+        >
+          累计
         </el-button>
         <el-button
           :type="activeView === 'range' ? 'primary' : 'default'"
           @click="switchView('range')"
         >
-          按日期范围查询
+          按日期范围
         </el-button>
       </div>
 
@@ -140,14 +152,15 @@
                 </svg>
 
                 <div class="pie-legend">
-                  <div
-                    v-for="slice in pieSlices"
-                    :key="`legend-${slice.key}`"
-                    class="legend-item"
-                    :class="{ 'is-hovered': hoveredSliceKey === slice.key }"
-                    @mouseenter="hoveredSliceKey = slice.key"
-                    @mouseleave="hoveredSliceKey = ''"
-                  >
+                    <div
+                      v-for="slice in pieSlices"
+                      :key="`legend-${slice.key}`"
+                      class="legend-item"
+                      :class="{ 'is-hovered': hoveredSliceKey === slice.key, 'is-filtered': (slice.key === 'success' && filterReason === 0) || (slice.key === 'fail' && filterReason === -1) }"
+                      @mouseenter="hoveredSliceKey = slice.key"
+                      @mouseleave="hoveredSliceKey = ''"
+                      @click="onLegendClick(slice.key)"
+                    >
                     <span class="legend-dot" :style="{ background: slice.color }" />
                     <span class="legend-label">{{ slice.label }}</span>
                     <span class="legend-count">{{ slice.count }} 条</span>
@@ -173,6 +186,16 @@
                   <div>
                     <h2>退出原因统计</h2>
                     <p>展示用户从匹配队列中退出的各种原因占比，包括成功匹配、主动退出、超时等。</p>
+                  </div>
+                  <div>
+                    <el-button-group>
+                      <el-button size="small" :type="filterReason === null ? 'primary' : 'default'" @click="setFilterReason(null)">全部</el-button>
+                      <el-button size="small" :type="filterReason === 0 ? 'primary' : 'default'" @click="setFilterReason(0)">匹配成功</el-button>
+                      <el-button size="small" :type="filterReason === 1 ? 'primary' : 'default'" @click="setFilterReason(1)">用户主动退出</el-button>
+                      <el-button size="small" :type="filterReason === 2 ? 'primary' : 'default'" @click="setFilterReason(2)">匹配超时</el-button>
+                      <el-button size="small" :type="filterReason === 3 ? 'primary' : 'default'" @click="setFilterReason(3)">网络错误</el-button>
+                      <el-button size="small" :type="filterReason === 4 ? 'primary' : 'default'" @click="setFilterReason(4)">已过期</el-button>
+                    </el-button-group>
                   </div>
                 </div>
               </template>
@@ -306,6 +329,11 @@
                     </el-table-column>
                     <el-table-column prop="duration" label="匹配时长(秒)" min-width="120" sortable />
                     <el-table-column prop="match_id" label="匹配 ID" min-width="180" />
+                    <el-table-column label="退出原因" min-width="160">
+                      <template #default="scope">
+                        {{ exitReasonLabel(scope.row.exit_reason) }}
+                      </template>
+                    </el-table-column>
                     <el-table-column label="创建时间" min-width="180">
                       <template #default="scope">
                         {{ formatTime(scope.row.created_at) }}
@@ -354,6 +382,7 @@ interface MatchingApplication {
   duration: number;
   match_id: string;
   created_at: string;
+  exit_reason?: number;
 }
 
 interface ExitReasonItem {
@@ -393,7 +422,7 @@ interface PieSlice {
   labelY: number;
 }
 
-type ViewMode = 'today' | 'range';
+type ViewMode = 'today' | 'range' | 'week' | 'all';
 
 const store = blogStore();
 const loading = ref(false);
@@ -404,6 +433,8 @@ const hoveredSliceKey = ref('');
 const rawDataCollapsed = ref(true);
 const pieAnimationKey = ref(0);
 const tablePageSize = ref(10);
+// filter by exit reason: null => all, otherwise numeric code
+const filterReason = ref<number | null>(null);
 
 const stats = reactive({
   total: 0,
@@ -427,9 +458,19 @@ const pieCenter = svgSize / 2;
 const successColor = '#10b981';
 const failColor = '#ef4444';
 
-const currentLabel = computed(() =>
-  activeView.value === 'today' ? '当日匹配申请统计' : '指定日期范围匹配申请统计',
-);
+const currentLabel = computed(() => {
+  switch (activeView.value) {
+    case 'today':
+      return '当日匹配申请统计';
+    case 'week':
+      return '本周匹配申请统计';
+    case 'all':
+      return '累计匹配申请统计';
+    case 'range':
+    default:
+      return '指定日期范围匹配申请统计';
+  }
+});
 
 const authHeaders = computed(() => {
   const headers: Record<string, string> = {};
@@ -479,10 +520,54 @@ const hoveredSlice = computed(() =>
   pieSlices.value.find((slice) => slice.key === hoveredSliceKey.value) ?? null,
 );
 
+// filter helpers
+function setFilterReason(reason: number | null) {
+  filterReason.value = reason;
+}
+
+function onLegendClick(key: string) {
+  // legend only has 'success' and 'fail'
+  if (key === 'success') {
+    setFilterReason(0);
+    return;
+  }
+  if (key === 'fail') {
+    // -1 means filter by is_matched === false
+    setFilterReason(-1);
+    return;
+  }
+}
+
+function exitReasonLabel(code?: number) {
+  switch (code) {
+    case 0:
+      return '匹配成功';
+    case 1:
+      return '用户主动退出';
+    case 2:
+      return '匹配超时';
+    case 3:
+      return '网络错误';
+    case 4:
+      return '已过期';
+    default:
+      return '-';
+  }
+}
+
 const displayTableData = computed(() => {
+  // apply exit reason filter first
+  let filtered = stats.records;
+  if (filterReason.value != null) {
+    if (filterReason.value === -1) {
+      filtered = stats.records.filter((r) => !r.is_matched);
+    } else {
+      filtered = stats.records.filter((r) => r.exit_reason === filterReason.value);
+    }
+  }
   const start = 0;
   const end = tablePageSize.value;
-  return stats.records.slice(start, end);
+  return filtered.slice(start, end);
 });
 
 interface SliceInput {
@@ -584,6 +669,58 @@ function resetStats() {
   tablePageSize.value = 10;
 }
 
+function formatDateYYYYMMDD(d: Date) {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+async function loadWeekStats() {
+  loading.value = true;
+  errorMessage.value = '';
+  try {
+    const now = new Date();
+    const weekday = now.getDay(); // 0 Sun .. 6 Sat
+    // compute Monday as start of week (China commonly uses Monday start)
+    const daysToMonday = weekday === 0 ? 6 : weekday - 1;
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysToMonday);
+    const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6);
+    const startStr = formatDateYYYYMMDD(start);
+    const endStr = formatDateYYYYMMDD(end);
+    const response = await axios.get<ApplicationStatsResponse>(
+      apiUrl(base.matchingApplicationRange),
+      { params: { start_date: startStr, end_date: endStr }, headers: authHeaders.value },
+    );
+    applyResponse(response.data);
+  } catch (error) {
+    console.error('获取本周匹配申请数据失败', error);
+    resetStats();
+    errorMessage.value = '获取本周匹配申请数据失败，请稍后重试。';
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function loadAllStats() {
+  loading.value = true;
+  errorMessage.value = '';
+  try {
+    const startStr = '1970-01-01';
+    const endStr = formatDateYYYYMMDD(new Date());
+    const response = await axios.get<ApplicationStatsResponse>(
+      apiUrl(base.matchingApplicationRange),
+      { params: { start_date: startStr, end_date: endStr }, headers: authHeaders.value },
+    );
+    applyResponse(response.data);
+  } catch (error) {
+    console.error('获取累计匹配申请数据失败', error);
+    resetStats();
+    errorMessage.value = '获取累计匹配申请数据失败，请稍后重试。';
+  } finally {
+    loading.value = false;
+  }
+}
 async function loadTodayStats() {
   loading.value = true;
   errorMessage.value = '';
@@ -640,6 +777,10 @@ function switchView(view: ViewMode) {
 
   if (view === 'today') {
     void loadTodayStats();
+  } else if (view === 'week') {
+    void loadWeekStats();
+  } else if (view === 'all') {
+    void loadAllStats();
   } else if (dateRange.value && dateRange.value.length === 2) {
     void loadRangeStats();
   } else {
@@ -650,6 +791,10 @@ function switchView(view: ViewMode) {
 function refreshCurrent() {
   if (activeView.value === 'today') {
     void loadTodayStats();
+  } else if (activeView.value === 'week') {
+    void loadWeekStats();
+  } else if (activeView.value === 'all') {
+    void loadAllStats();
   } else {
     void loadRangeStats();
   }
@@ -1072,6 +1217,11 @@ onMounted(() => {
   border-color: rgba(96, 165, 250, 0.4);
   box-shadow: 0 4px 12px rgba(96, 165, 250, 0.15);
   transform: translateX(4px);
+}
+
+.legend-item.is-filtered {
+  border-color: rgba(96, 165, 250, 0.45);
+  box-shadow: 0 6px 18px rgba(96, 165, 250, 0.18);
 }
 
 .legend-dot {
