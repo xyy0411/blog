@@ -56,7 +56,11 @@ func (MatchingRecord) TableName() string {
 
 // MatchingApplication 匹配申请表，记录用户申请匹配的信息
 type MatchingApplication struct {
-	gorm.Model
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at"`
+
 	UserID     int64      `gorm:"index" json:"user_id"`                    // 用户ID
 	UserName   string     `gorm:"size:100" json:"user_name"`               // 用户名
 	IsMatched  bool       `gorm:"default:false;index" json:"is_matched"`   // 是否匹配成功
