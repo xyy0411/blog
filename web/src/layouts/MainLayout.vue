@@ -21,6 +21,10 @@
           <el-icon><PieChart /></el-icon>
           <template #title>匹配申请统计</template>
         </el-menu-item>
+        <el-menu-item index="/articles">
+          <el-icon><Document /></el-icon>
+          <template #title>文章列表</template>
+        </el-menu-item>
         <el-menu-item index="/about">
           <el-icon><InfoFilled /></el-icon>
           <template #title>关于</template>
@@ -67,6 +71,7 @@ defineOptions({ name: 'MainLayout' });
 
 import {
   DataLine,
+  Document,
   Expand,
   Fold,
   InfoFilled,
@@ -85,16 +90,14 @@ const SMALL_SCREEN_BREAKPOINT = 768;
 const activeMenu = computed(() => route.path);
 
 const currentRouteTitle = computed(() => {
-  switch (route.path) {
-    case '/matching-stats':
-      return '匹配记录统计';
-    case '/matching-application':
-      return '匹配申请统计';
-    case '/about':
-      return '关于';
-    default:
-      return '博客后台';
-  }
+  if (route.path === '/matching-stats') return '匹配记录统计';
+  if (route.path === '/matching-application') return '匹配申请统计';
+  if (route.path === '/about') return '关于';
+  if (route.path === '/articles') return '文章列表';
+  if (route.path === '/article/new') return '写新文章';
+  if (/^\/article\/\d+\/edit$/.test(route.path)) return '编辑文章';
+  if (/^\/article\/\d+$/.test(route.path)) return '文章详情';
+  return '博客后台';
 });
 
 function loadPersistedState() {
