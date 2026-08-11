@@ -25,6 +25,10 @@
           <el-icon><Document /></el-icon>
           <template #title>文章列表</template>
         </el-menu-item>
+        <el-menu-item v-if="store.token" index="/article/new">
+          <el-icon><EditPen /></el-icon>
+          <template #title>写文章</template>
+        </el-menu-item>
         <el-menu-item index="/about">
           <el-icon><InfoFilled /></el-icon>
           <template #title>关于</template>
@@ -72,6 +76,7 @@ defineOptions({ name: 'MainLayout' });
 import {
   DataLine,
   Document,
+  EditPen,
   Expand,
   Fold,
   InfoFilled,
@@ -79,8 +84,10 @@ import {
 } from '@element-plus/icons-vue';
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
+import blogStore from '@/store/arlog.ts';
 
 const route = useRoute();
+const store = blogStore();
 const collapsed = ref(false);
 const isSmallScreen = ref(false);
 

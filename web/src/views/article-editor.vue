@@ -32,37 +32,14 @@
                 <span>上传 Markdown 文件</span>
               </el-button>
             </el-upload>
-            <span class="toolbar-hint">上传后按空行分段填入下方</span>
+            <span class="toolbar-hint">支持 markdown 语法，详情页自动渲染</span>
           </div>
-
-          <div class="sections">
-            <div
-              v-for="(_, idx) in sections"
-              :key="idx"
-              class="section-item"
-            >
-              <div class="section-toolbar">
-                <span class="section-label">段落 {{ idx + 1 }}</span>
-                <el-button
-                  v-if="sections.length > 1"
-                  size="small"
-                  type="danger"
-                  plain
-                  @click="removeSection(idx)"
-                >删除此段</el-button>
-              </div>
-              <el-input
-                v-model="sections[idx]"
-                type="textarea"
-                :rows="6"
-                placeholder="支持 markdown 语法"
-              />
-            </div>
-          </div>
-          <el-button class="add-section-btn" @click="addSection" plain>
-            <el-icon><Plus /></el-icon>
-            <span>添加段落</span>
-          </el-button>
+          <el-input
+            v-model="form.content"
+            type="textarea"
+            :rows="16"
+            placeholder="写点什么... 支持 markdown 语法"
+          />
         </el-form-item>
 
         <el-form-item label="评论">
@@ -84,7 +61,7 @@ import axios from 'axios';
 import base, { apiUrl } from '@/api/api.ts';
 import blogStore from '@/store/arlog.ts';
 import type { UploadFile } from 'element-plus';
-import { Plus, Upload } from '@element-plus/icons-vue';
+import { Upload } from '@element-plus/icons-vue';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
@@ -94,34 +71,21 @@ const store = blogStore();
 
 const isEdit = computed(() => !!route.params.id);
 const submitting = ref(false);
-const sections = ref<string[]>(['']);
 const form = ref({
   title: '',
+  abstract: '',
+  content: '',
   cover: '',
   open_comment: true,
 });
-
-function addSection() {
-  sections.value.push('');
-}
-
-function removeSection(idx: number) {
-  sections.value.splice(idx, 1);
-}
 
 function handleFileUpload(file: UploadFile) {
   if (!file.raw) return;
   const reader = new FileReader();
   reader.onload = (e) => {
     const text = String(e.target?.result || '');
-    const parts = text
-      .split(/\n{2,}/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (parts.length > 0) {
-      sections.value = parts;
-    } else if (text.trim()) {
-      sections.value = [text];
+    if (text.trim()) {
+      form.value.content = text;
     }
   };
   reader.onerror = () => {
@@ -137,10 +101,10 @@ async function loadArticle() {
     const data = response.data?.data;
     if (data?.article) {
       form.value.title = data.article.title || '';
+      form.value.abstract = data.article.abstract || '';
+      form.value.content = data.article.content || '';
       form.value.cover = data.article.cover || '';
       form.value.open_comment = data.article.open_comment ?? true;
-      sections.value = (data.article.content || '').split(/\n{2,}/).filter((s: string) => s.trim());
-      if (sections.value.length === 0) sections.value = [''];
     }
   } catch (error) {
     console.error('获取文章失败', error);
@@ -148,18 +112,14 @@ async function loadArticle() {
 }
 
 async function submit() {
-  if (!form.value.title.trim()) {
-    return;
-  }
-  const nonEmptySections = sections.value.filter((s) => s.trim());
-  if (nonEmptySections.length === 0) {
-    return;
-  }
+  if (!form.value.title.trim()) return;
+  if (!form.value.content.trim()) return;
   submitting.value = true;
   try {
     const payload = {
       title: form.value.title,
-      contents: { content: nonEmptySections },
+      abstract: form.value.abstract,
+      content: form.value.content,
       cover: form.value.cover,
       open_comment: form.value.open_comment,
     };
@@ -224,38 +184,6 @@ onMounted(() => {
 .toolbar-hint {
   color: #8b8b9e;
   font-size: 12px;
-}
-
-.sections {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  width: 100%;
-}
-
-.section-item {
-  border: 1px solid #2a2a3a;
-  border-radius: 6px;
-  padding: 12px;
-  background: #131320;
-}
-
-.section-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.section-label {
-  color: #8b8b9e;
-  font-size: 12px;
-}
-
-.add-section-btn {
-  margin-top: 12px;
-  width: 100%;
-  border-style: dashed;
 }
 
 .switch-hint {

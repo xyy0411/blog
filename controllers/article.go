@@ -58,7 +58,7 @@ func UpdateArticle(ctx *gin.Context) {
 
 	// 更新文章标题和内容
 	article.Title = input.Title
-	article.Content = input.Contents.String()
+	article.Content = input.Content
 
 	// 保存更新后的文章
 	if err := tx.Save(&article).Error; err != nil {
@@ -227,7 +227,7 @@ func CreateArticle(ctx *gin.Context) {
 		return
 	}
 
-	if input.Title == "" || input.Contents.Len() == 0 {
+	if input.Title == "" || input.Content == "" {
 		resp.Error(ctx, http.StatusBadRequest, "标题和内容不能为空")
 		return
 	}
@@ -244,7 +244,7 @@ func CreateArticle(ctx *gin.Context) {
 	article := models.Article{
 		UserID:      user.ID,
 		Title:       input.Title,
-		Content:     input.Contents.String(),
+		Content:     input.Content,
 		Cover:       input.Cover,
 		OpenComment: input.OpenComment,
 	}

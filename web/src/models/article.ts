@@ -29,13 +29,10 @@ export interface CommentWithArticle {
   comments: Comment[];
 }
 
-export interface ArticleContent {
-  content: string[];
-}
-
 export interface CommitArticle {
   title: string;
-  contents: ArticleContent;
+  abstract: string;
+  content: string;
   cover: string;
   open_comment: boolean;
 }
