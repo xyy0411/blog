@@ -38,7 +38,11 @@
 import {ref} from "vue";
 import axios from "axios";
 import base, { apiUrl } from "@/api/api.ts";
+import blogStore from "@/store/arlog.ts";
+import { useRouter } from "vue-router";
 
+const router = useRouter();
+const store = blogStore();
 let emails = ref(``);
 let password = ref(``);
 
@@ -57,9 +61,9 @@ async function login() {
       name: emails.value,
       password: password.value
     });
-    if (response.status === 200) {
-      // 登录成功后的处理
-      console.log(response.data);
+    if (response.status === 200 && response.data?.token) {
+      store.patchAndPersist({ token: response.data.token });
+      router.push('/articles');
     } else {
       alert('登录失败');
     }
@@ -68,9 +72,6 @@ async function login() {
     alert('登录失败，请检查网络或稍后再试');
   }
 }
-
-
-
 </script>
 
 <style scoped>
