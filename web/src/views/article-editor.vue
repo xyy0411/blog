@@ -127,13 +127,13 @@ async function submit() {
       await axios.put(
         apiUrl(base.showArticle.replace(':article_id', route.params.id as string)),
         payload,
-        { headers: { token: store.token } }
+        { headers: { Authorization: store.token } }
       );
     } else {
       await axios.post(
         apiUrl(base.createArticle),
         payload,
-        { headers: { token: store.token } }
+        { headers: { Authorization: store.token } }
       );
     }
     router.push('/articles');

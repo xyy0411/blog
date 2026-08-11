@@ -145,7 +145,7 @@ async function submitComment() {
     await axios.post(
       apiUrl(base.publishArticleComment.replace(':article_id', articleId.value)),
       { content: newComment.value },
-      { headers: { token: store.token } }
+      { headers: { Authorization: store.token } }
     );
     newComment.value = '';
     await loadArticle();
