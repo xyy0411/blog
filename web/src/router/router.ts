@@ -36,6 +36,28 @@ const router = createRouter({
       component: () => import('@/views/matching-application.vue'),
     },
     {
+      path: '/articles',
+      name: 'ArticleList',
+      component: () => import('@/views/article-list.vue'),
+    },
+    {
+      path: '/article/new',
+      name: 'ArticleNew',
+      component: () => import('@/views/article-editor.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/article/:id',
+      name: 'ArticleDetail',
+      component: () => import('@/views/article-detail.vue'),
+    },
+    {
+      path: '/article/:id/edit',
+      name: 'ArticleEdit',
+      component: () => import('@/views/article-editor.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/:pathMatch(.*)*',
       name: 'NotFound',
       component: () => import('@/views/not-found.vue'),

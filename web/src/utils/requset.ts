@@ -12,7 +12,7 @@ req.interceptors.request.use(
     const store = blogStore();
 
     if (store.token) {
-      config.headers.token = store.token;
+      config.headers.Authorization = store.token;
     }
 
     if (config.method?.toUpperCase() === 'POST') {

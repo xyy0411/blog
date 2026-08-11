@@ -1,13 +1,38 @@
 export interface Article {
-  userId?: number;        // 关联用户
-  title: string;         // 标题
-  abstract: string;      // 简介
-  content: string;       // 内容
-  cover?: string;         // 封面
-  lookCount?: number;     // 浏览量
-  likes?: number;         // 点赞数
-  commentCount?: number;  // 评论数
-  collectCount?: number;  // 收藏数
-  openComment?: boolean;   // 文章评论开关
-  status: number;        // 状态 草稿 审核中 已发布
+  id?: number;
+  user_id: number;
+  title: string;
+  abstract: string;
+  content: string;
+  cover: string;
+  look_count: number;
+  likes: number;
+  comment_count: number;
+  collect_count: number;
+  open_comment: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Comment {
+  id?: number;
+  user_id: number;
+  article_id: number;
+  content: string;
+  ip?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CommentWithArticle {
+  article: Article;
+  comments: Comment[];
+}
+
+export interface CommitArticle {
+  title: string;
+  abstract: string;
+  content: string;
+  cover: string;
+  open_comment: boolean;
 }
