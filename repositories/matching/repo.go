@@ -20,7 +20,7 @@ func (r *Repo) UpdateName(userID int64, name string) error {
 	return r.db.
 		Model(&models.Matching{}).
 		Where("user_id = ?", userID).
-		Update("name", name).
+		Update("user_name", name).
 		Error
 }
 
