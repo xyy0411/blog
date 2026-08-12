@@ -2,8 +2,6 @@ package matching
 
 import (
 	"errors"
-	"fmt"
-	"math/rand"
 	"net/http"
 	"time"
 
@@ -137,105 +135,4 @@ func GetMatchingApplicationsByDateRange(ctx *gin.Context) {
 	}
 
 	resp.OK(ctx, "", summarizeApplications(apps))
-}
-
-// SeedMatchingApplications 向 matching_applications 表中插入一批模拟数据。
-// 仅用于本地演示/验证效果：随机挑选近 10 天，生成约 120 条数据（约 60% 成功，40% 失败）。
-// 接口幂等：每次调用都会追加新数据，不会覆盖已有。
-func SeedMatchingApplications(ctx *gin.Context) {
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-
-	users := []struct {
-		id   int64
-		name string
-	}{
-		{1001, "小明"},
-		{1002, "小红"},
-		{1003, "张三"},
-		{1004, "李四"},
-		{1005, "王五"},
-		{1006, "赵六"},
-		{1007, "阿七"},
-		{1008, "小八"},
-	}
-
-	now := time.Now()
-	loc := now.Location()
-	createdCount := 0
-	successCount := 0
-	failCount := 0
-
-	// 每天按权重生成条数：越靠近今天条数越多
-	for daysAgo := 9; daysAgo >= 0; daysAgo-- {
-		dayBase := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc).
-			AddDate(0, 0, -daysAgo)
-
-		// 近 10 天的总目标约 120 条，前几天少，今天多
-		weight := 1.0
-		switch {
-		case daysAgo == 0:
-			weight = 2.4 // 今天 24 条左右
-		case daysAgo <= 2:
-			weight = 1.6
-		case daysAgo <= 5:
-			weight = 1.1
-		default:
-			weight = 0.7
-		}
-		perDayTarget := int(float64(10) * weight)
-
-		for i := 0; i < perDayTarget; i++ {
-			user := users[rng.Intn(len(users))]
-
-			// 62% 的成功率
-			isMatched := rng.Intn(100) < 62
-
-			var duration int
-			var matchID string
-			var exitReason models.ExitReason
-			if isMatched {
-				duration = 30 + rng.Intn(270) // 30~300 秒
-				matchID = fmt.Sprintf("M%d%d%d", dayBase.Unix(), user.id, rng.Intn(9000)+1000)
-				exitReason = models.ExitReasonSuccess
-				successCount++
-			} else {
-				duration = 0
-				exitReason = models.ExitReasonUserInitiated
-				failCount++
-			}
-
-			// 在当天内随机偏移时间（0~23 小时 + 0~59 分钟 + 0~59 秒）
-			offset := time.Duration(rng.Intn(24))*time.Hour +
-				time.Duration(rng.Intn(60))*time.Minute +
-				time.Duration(rng.Intn(60))*time.Second
-			createdAt := dayBase.Add(offset)
-
-			app := models.MatchingApplication{
-				UserID:     user.id,
-				UserName:   user.name,
-				IsMatched:  isMatched,
-				Duration:   duration,
-				MatchID:    matchID,
-				ExitReason: exitReason,
-			}
-			app.CreatedAt = createdAt
-			app.UpdatedAt = createdAt
-
-			if err := global.DB.Create(&app).Error; err != nil {
-				global.Logger.Errorf("插入 MatchingApplication 测试数据失败: %v", err)
-				resp.Error(ctx, http.StatusInternalServerError, "生成测试数据失败，请检查数据库连接")
-				return
-			}
-			createdCount++
-		}
-	}
-
-	resp.OK(ctx, "已生成匹配申请测试数据", map[string]any{
-		"created_count":  createdCount,
-		"success_count":  successCount,
-		"fail_count":     failCount,
-		"success_rate":   computeRate(successCount, createdCount),
-		"date_span":      "最近 10 天（含今日）",
-		"distinct_users": len(users),
-	})
 }

@@ -38,7 +38,7 @@ func SetupRouter() *gin.Engine {
 	matched := api.Group("/matching")
 	{
 		matched.POST("/profile", matching.CreateMatchingProfile)
-		matched.PUT("/profile/:user_id", matching.UpdateProfileName)
+		matched.PATCH("/profile/:user_id", matching.UpdateProfileName)
 		matched.GET("/profile/:user_id", matching.GetMatchingProfile)
 		matched.GET("/profile/:user_id/software", matching.GetMatchingSoftwareList)
 		matched.GET("/profile/:user_id/block-user", matching.GetMatchingBlockUserList)
@@ -59,8 +59,6 @@ func SetupRouter() *gin.Engine {
 		matched.GET("/application/today", matching.GetTodayMatchingApplications)
 		// 指定日期范围查询：接收 start_date 与 end_date 参数
 		matched.GET("/application/range", matching.GetMatchingApplicationsByDateRange)
-		// 演示用：生成 MatchingApplication 测试数据（仅本地调试使用）
-		matched.GET("/application/seed", matching.SeedMatchingApplications)
 
 		matched.GET("/status/:user_id", matching.LookMatchingStatus)
 		matched.GET("/:user_id", matching.HandleMatching)
